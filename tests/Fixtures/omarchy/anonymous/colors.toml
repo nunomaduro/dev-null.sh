@@ -1,0 +1,8 @@
+# A theme used to exercise the parser edge cases.
+
+not a key value line
+= "#000000"
+orphan =
+mode = "dark"
+background = "#101014"
+foreground = "#f0f0f0"

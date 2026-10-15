@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\ResolveOmarchyTheme;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
@@ -9,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 it('shares app name from config', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
 
@@ -20,7 +21,7 @@ it('shares app name from config', function (): void {
 });
 
 it('shares null user when guest', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
 
@@ -37,7 +38,7 @@ it('shares authenticated user data', function (): void {
         'username' => 'test-user',
     ]);
 
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
@@ -55,7 +56,7 @@ it('shares the authenticated user commit and follow counts', function (): void {
     $user->following()->attach(User::factory()->count(3)->create());
     User::factory()->create()->following()->attach($user);
 
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
@@ -70,7 +71,7 @@ it('shares the authenticated user commit and follow counts', function (): void {
 it('defers loading the authenticated user until the prop is resolved', function (): void {
     $user = User::factory()->create();
 
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
@@ -83,7 +84,7 @@ it('defers loading the authenticated user until the prop is resolved', function 
 });
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
 
@@ -94,7 +95,7 @@ it('defaults sidebarOpen to true when no cookie', function (): void {
 });
 
 it('sets sidebarOpen to true when cookie is true', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->cookies->set('sidebar_state', 'true');
@@ -105,7 +106,7 @@ it('sets sidebarOpen to true when cookie is true', function (): void {
 });
 
 it('sets sidebarOpen to false when cookie is false', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->cookies->set('sidebar_state', 'false');
@@ -116,7 +117,7 @@ it('sets sidebarOpen to false when cookie is false', function (): void {
 });
 
 it('includes parent shared data', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
 
@@ -131,7 +132,7 @@ it('shares whether the authenticated user is an admin', function (bool $isAdmin)
 
     $user = User::factory()->create(['username' => 'octocat']);
 
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
@@ -142,9 +143,38 @@ it('shares whether the authenticated user is an admin', function (bool $isAdmin)
 })->with([true, false]);
 
 it('shares guests as non admins', function (): void {
-    $middleware = new HandleInertiaRequests();
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
 
     $shared = $middleware->share(Request::create('/', 'GET'));
 
     expect($shared['auth']['isAdmin'])->toBeFalse();
+});
+
+it('shares the resolved omarchy theme', function (): void {
+    config([
+        'omarchy.enabled' => true,
+        'omarchy.path' => fixturePath('omarchy/dark/colors.toml'),
+        'omarchy.font_path' => null,
+        'omarchy.font' => null,
+    ]);
+
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['omarchy'])->toBe([
+        'name' => 'Warm Glass',
+        'mode' => 'dark',
+        'font' => null,
+    ]);
+});
+
+it('shares null omarchy when unavailable', function (): void {
+    config(['omarchy.enabled' => false]);
+
+    $middleware = new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class));
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['omarchy'])->toBeNull();
 });

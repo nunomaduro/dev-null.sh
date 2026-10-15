@@ -24,6 +24,11 @@ pest()->extend(TestCase::class)
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
+function fixturePath(string $path): string
+{
+    return __DIR__.'/Fixtures/'.$path;
+}
+
 function something(): void
 {
     // ..

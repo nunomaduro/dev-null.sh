@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 export type ResolvedAppearance = 'light' | 'dark';
-export type Appearance = ResolvedAppearance | 'system';
+export type Appearance = ResolvedAppearance | 'system' | 'omarchy';
 
 export type UseAppearanceReturn = {
     readonly appearance: Appearance;
@@ -37,7 +37,21 @@ const getStoredAppearance = (): Appearance => {
     return (localStorage.getItem('appearance') as Appearance) || 'system';
 };
 
+const omarchyMode = (): string | null => {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    return document.documentElement.dataset.omarchyMode ?? null;
+};
+
+const omarchyAvailable = (): boolean => (omarchyMode() ?? '') !== '';
+
 const isDarkMode = (appearance: Appearance): boolean => {
+    if (appearance === 'omarchy') {
+        return omarchyAvailable() ? omarchyMode() === 'dark' : prefersDark();
+    }
+
     return appearance === 'dark' || (appearance === 'system' && prefersDark());
 };
 
@@ -80,7 +94,19 @@ export function initializeTheme(): void {
         setCookie('appearance', 'system');
     }
 
-    currentAppearance = getStoredAppearance();
+    const stored = getStoredAppearance();
+
+    // A stored "omarchy" preference is meaningless without an Omarchy theme
+    // (for example, the desktop theme was removed). Fall back to "system" so
+    // the client matches the server, which already ignores it.
+    currentAppearance =
+        stored === 'omarchy' && !omarchyAvailable() ? 'system' : stored;
+
+    if (currentAppearance !== stored) {
+        localStorage.setItem('appearance', currentAppearance);
+        setCookie('appearance', currentAppearance);
+    }
+
     applyTheme(currentAppearance);
 
     // Set up system theme change listener

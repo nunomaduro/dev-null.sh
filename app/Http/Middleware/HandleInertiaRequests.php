@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\ResolveOmarchyTheme;
 use App\Models\User;
+use App\Omarchy\OmarchyTheme;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -16,6 +18,8 @@ final class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(private readonly ResolveOmarchyTheme $omarchy) {}
 
     /**
      * @see https://inertiajs.com/asset-versioning
@@ -32,6 +36,8 @@ final class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $theme = $this->omarchy->handle();
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -40,6 +46,11 @@ final class HandleInertiaRequests extends Middleware
                 'isAdmin' => $request->user()?->isAdmin() ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'omarchy' => $theme instanceof OmarchyTheme ? [
+                'name' => $theme->name,
+                'mode' => $theme->mode,
+                'font' => $theme->font,
+            ] : null,
         ];
     }
 }

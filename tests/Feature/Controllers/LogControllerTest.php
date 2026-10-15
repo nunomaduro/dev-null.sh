@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\ResolveOmarchyTheme;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
@@ -116,7 +117,7 @@ it('counts commits newer than a given commit', function (): void {
     $response = $this->actingAs($user)
         ->withHeaders([
             'X-Inertia' => 'true',
-            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Version' => (string) new HandleInertiaRequests(resolve(ResolveOmarchyTheme::class))->version(request()),
             'X-Inertia-Partial-Component' => 'log/show',
             'X-Inertia-Partial-Data' => 'newCommitsCount',
         ])
