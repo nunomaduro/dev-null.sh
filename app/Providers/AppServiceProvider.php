@@ -15,18 +15,42 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+use Laravel\Passport\Passport;
+use Laravel\Passport\Scope;
 
 final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+
+        Passport::$deviceCodeGrantEnabled = false;
     }
 
     public function boot(): void
     {
         $this->bootRateLimitingDefaults();
         $this->bootExceptionHandling();
+        $this->bootPassport();
+    }
+
+    /**
+     * Every visit to the consent page issues a new auth token, so the page must not reload itself (as it would for
+     * deferred shared props): the form would then hold a token the session no longer knows.
+     */
+    private function bootPassport(): void
+    {
+        Passport::authorizationView(fn (array $parameters): InertiaResponse => Inertia::render('oauth/authorize', [
+            'suggestedUsers' => null,
+            'client' => $parameters['client']->name,
+            'scopes' => array_map(fn (Scope $scope): string => $scope->description, $parameters['scopes']),
+            'authToken' => $parameters['authToken'],
+            'state' => $parameters['request']->input('state'),
+            'clientId' => $parameters['client']->getKey(),
+            'csrfToken' => csrf_token(),
+            'url' => route('passport.authorizations.approve'),
+        ]));
     }
 
     private function bootExceptionHandling(): void
@@ -62,6 +86,8 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()?->id ?? $request->ip()));
+
         RateLimiter::for('commits', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);
