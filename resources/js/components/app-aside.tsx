@@ -21,7 +21,7 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { auth, onlineDevelopersCount } = usePage().props;
 
     return (
         <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
@@ -132,6 +132,22 @@ export function AppAside({
             </section>
 
             <div className="mt-auto space-y-2 text-sm text-muted-foreground">
+                <div
+                    className="flex items-center gap-2 font-mono text-xs"
+                    data-test="online-developers-count"
+                >
+                    <span
+                        aria-hidden
+                        className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                    />
+                    <span>
+                        {onlineDevelopersCount}{' '}
+                        {onlineDevelopersCount === 1
+                            ? 'developer'
+                            : 'developers'}{' '}
+                        online
+                    </span>
+                </div>
                 <button
                     type="button"
                     onClick={onShowShortcuts}
