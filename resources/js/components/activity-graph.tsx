@@ -1,5 +1,5 @@
-import type { CSSProperties, MouseEvent } from 'react';
-import { useRef, useState } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import { useId, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
@@ -37,8 +37,20 @@ function levelColor(level: number): string {
         : `color-mix(in oklab, var(--lane) ${levelMix[level]}%, var(--card))`;
 }
 
-function levelOf(count: number, max: number): number {
-    return count === 0 ? 0 : Math.max(1, Math.ceil((count / max) * 4));
+function levelOf(bucket: ActivityBucket, max: number): number {
+    if (bucket.level !== undefined) {
+        return bucket.level;
+    }
+
+    return bucket.count === 0
+        ? 0
+        : Math.max(1, Math.ceil((bucket.count / max) * 4));
+}
+
+type Noun = [singular: string, plural: string];
+
+function counted(count: number, [singular, plural]: Noun): string {
+    return `${count.toLocaleString('en-US')} ${count === 1 ? singular : plural}`;
 }
 
 function utcDay(date: string): Date {
@@ -64,11 +76,13 @@ function formatTime(time: Date): string {
         .join(':');
 }
 
-function describe(bucket: ActivityBucket, scale: ActivityScale): string {
+function describe(
+    bucket: ActivityBucket,
+    scale: ActivityScale,
+    noun: Noun,
+): string {
     const commits =
-        bucket.count === 0
-            ? 'No commits'
-            : `${bucket.count} ${bucket.count === 1 ? 'commit' : 'commits'}`;
+        bucket.count === 0 ? `No ${noun[1]}` : counted(bucket.count, noun);
 
     if (scale !== 'day') {
         return `${commits} on ${formatDay(bucket.date, scale === 'year')}`;
@@ -135,11 +149,23 @@ export function ActivityGraph({
     activity,
     lane,
     onPeriodHover,
+    heading = 'Commit activity',
+    noun = ['commit', 'commits'],
+    className = 'border-b px-4 py-5 sm:px-6',
+    summary: customSummary,
+    fitWidth = false,
 }: {
     activity: Activity;
     lane: string;
     onPeriodHover?: (period: string | null) => void;
+    heading?: ReactNode;
+    noun?: Noun;
+    className?: string;
+    summary?: ReactNode;
+    // From sm up, the year shrinks to fit a narrow column, such as a commit, instead of scrolling.
+    fitWidth?: boolean;
 }) {
+    const headingId = useId();
     const sectionRef = useRef<HTMLElement>(null);
     const [hovered, setHovered] = useState<HoveredBucket | null>(null);
     const { scale, buckets } = activity;
@@ -180,30 +206,31 @@ export function ActivityGraph({
     const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
     const isEmpty = total === 0 && scale !== 'year';
     const summary = isEmpty
-        ? 'No commits yet'
-        : `${total} ${total === 1 ? 'commit' : 'commits'} ${windows[scale]}`;
+        ? `No ${noun[1]} yet`
+        : `${counted(total, noun)} ${windows[scale]}`;
 
     return (
         <section
             ref={sectionRef}
-            aria-labelledby="activity-heading"
-            className="relative border-b px-4 py-5 sm:px-6"
+            aria-labelledby={headingId}
+            className={cn('relative', className)}
             style={{ '--lane': lane } as CSSProperties}
         >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id="activity-heading" className="text-sm font-semibold">
-                    Commit activity
+                <h2 id={headingId} className="text-sm font-semibold">
+                    {heading}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    {isEmpty ? (
-                        'No commits yet'
+                    {customSummary !== undefined ? (
+                        customSummary
+                    ) : isEmpty ? (
+                        `No ${noun[1]} yet`
                     ) : (
                         <>
                             <span className="font-mono text-foreground">
-                                {total}
+                                {total.toLocaleString('en-US')}
                             </span>{' '}
-                            {total === 1 ? 'commit' : 'commits'}{' '}
-                            {windows[scale]}
+                            {total === 1 ? noun[0] : noun[1]} {windows[scale]}
                         </>
                     )}
                 </p>
@@ -214,6 +241,7 @@ export function ActivityGraph({
                     buckets={buckets}
                     max={max}
                     summary={summary}
+                    fitWidth={fitWidth}
                     onEnter={hoverBucket}
                     onLeave={clearHover}
                 />
@@ -243,7 +271,7 @@ export function ActivityGraph({
                     data-tooltip
                     style={{ left: hovered.left, top: hovered.top - 6 }}
                 >
-                    {describe(hovered.bucket, scale)}
+                    {describe(hovered.bucket, scale, noun)}
                 </div>
             )}
 
@@ -290,7 +318,7 @@ function Strip({
                         onMouseEnter={(event) => onEnter(bucket, event)}
                         className="h-10 rounded-[2px] transition-shadow hover:shadow-[0_0_0_1.5px_var(--foreground)] sm:h-12"
                         style={{
-                            background: levelColor(levelOf(bucket.count, max)),
+                            background: levelColor(levelOf(bucket, max)),
                         }}
                     />
                 ))}
@@ -323,7 +351,8 @@ function YearGrid({
     summary,
     onEnter,
     onLeave,
-}: CellsProps & { summary: string }) {
+    fitWidth,
+}: CellsProps & { summary: string; fitWidth: boolean }) {
     const weekStarts = buckets.filter((_, index) => index % 7 === 0);
     const monthLabels = weekStarts.map((day, index) => {
         const changesMonth =
@@ -351,12 +380,17 @@ function YearGrid({
                     node.scrollLeft = node.scrollWidth;
                 }
             }}
-            className="overflow-x-auto pb-1"
+            className={cn('overflow-x-auto pb-1', {
+                'sm:overflow-visible': fitWidth,
+            })}
         >
             <div
                 role="img"
                 aria-label={summary}
-                className="grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
+                className={cn(
+                    'grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5',
+                    { 'sm:min-w-0': fitWidth },
+                )}
             >
                 <span aria-hidden />
                 <div
@@ -376,7 +410,10 @@ function YearGrid({
 
                 <div
                     aria-hidden
-                    className="grid grid-rows-7 gap-[3px] text-xs text-muted-foreground"
+                    className={cn(
+                        'grid grid-rows-7 gap-[3px] text-xs text-muted-foreground',
+                        { 'sm:gap-[2px]': fitWidth },
+                    )}
                 >
                     {weekdayLabels.map((label, index) => (
                         <span
@@ -390,7 +427,9 @@ function YearGrid({
 
                 <div
                     onMouseLeave={onLeave}
-                    className="grid grid-flow-col grid-rows-7 gap-[3px]"
+                    className={cn('grid grid-flow-col grid-rows-7 gap-[3px]', {
+                        'sm:gap-[2px]': fitWidth,
+                    })}
                     style={columns}
                 >
                     {buckets.map((day) => (
@@ -399,7 +438,7 @@ function YearGrid({
                             onMouseEnter={(event) => onEnter(day, event)}
                             className="aspect-square rounded-[2px] transition-shadow hover:shadow-[0_0_0_1.5px_var(--foreground)]"
                             style={{
-                                background: levelColor(levelOf(day.count, max)),
+                                background: levelColor(levelOf(day, max)),
                             }}
                         />
                     ))}

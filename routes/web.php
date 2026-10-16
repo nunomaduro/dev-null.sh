@@ -7,6 +7,7 @@ use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitGitHubActivityController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPhotoController;
@@ -113,6 +114,9 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/github-activity', [CommitGitHubActivityController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('commit-github-activity.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');

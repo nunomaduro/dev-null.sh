@@ -14,6 +14,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { GitHubActivityGraph } from '@/components/github-activity';
 import {
     GraphRail,
     RailAvatar,
@@ -26,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { isGitHubActivity } from '@/lib/github-activity';
 import {
     cn,
     formatFullDateTime,
@@ -315,6 +317,9 @@ export function CommitCard({
                                     isFocused ? 'text-[17px]' : 'text-[15px]',
                                 )}
                             />
+                            {isGitHubActivity(commit.body) && (
+                                <GitHubActivityGraph commit={commit} />
+                            )}
                             {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (
                                 <CommitPoll
