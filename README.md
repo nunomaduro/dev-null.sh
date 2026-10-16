@@ -76,6 +76,49 @@ curl -s https://dev-null.sh/api/v1/users/nunomaduro/commits | jq '.data[] | {sho
 
 Every profile also has an Atom feed of its latest 50 top-level commits at `/@{username}/feed.atom`, with their images as enclosures, cached for five minutes.
 
+## Signed requests
+
+The mobile app signs its requests to `/api/v1` with an SSH key that is on the user's GitHub account, the way `devnull commit` signs commits. A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
+
+Each request sends three headers:
+
+| Header | Value |
+|---|---|
+| `X-Devnull-Timestamp` | Unix time in seconds, within 5 minutes of the server's clock |
+| `X-Devnull-Nonce` | 32 random hex characters, used once |
+| `X-SSH-Signature` | The SSHSIG signature, base64 on one line |
+
+The signature is made with `ssh-keygen -Y sign -n devnull-api` over these lines, joined by `\n`: the timestamp, the nonce, the method, the path with its query string exactly as sent, and the raw body.
+
+```text
+1760534400
+3f9c2a7e5b1d4c8f9a0b2c3d4e5f6a7b
+POST
+/api/v1/commits
+{"body":"Hello from my phone"}
+```
+
+A request with any of these headers has to be signed right. A bad or expired signature is a `401`, never the public view. A request without them always gets the public view, and across a block a signed request gets neither profile: it is a `403`, `user_blocked` for the one who blocked and `user_unavailable` for the other, and their commits are hidden as on the web.
+
+### Errors
+
+An error is JSON with a `message` to show the user. The errors the app has to tell apart also have a `code`, which stays the same when the message changes:
+
+```json
+{"message": "Signature expired. Check that your clock is right.", "code": "invalid_signature"}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| `401` | `invalid_signature` | The signature is missing, malformed or wrong, has expired, or was used already. |
+| `401` | `key_not_on_github` | The key isn't on the GitHub account of a devnull user. |
+| `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
+| `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, or 30 follows and unfollows a minute. `Retry-After` says when to try again. |
+| `503` | `github_unreachable` | GitHub couldn't be reached to check the key. |
+
+Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
+
 ## Available Tooling
 
 ### Development
