@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -43,10 +44,24 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');
 
+        // Commit...
+        Route::post('commits', [ApiCommitController::class, 'store'])
+            ->middleware(ThrottleCommits::class)
+            ->name('api-commit.store');
+        Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
         // Commit Reply...
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+
+        // User Follow...
+        Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-user-follow.store');
+        Route::delete('users/{user:username}/follow', [UserFollowController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-user-follow.destroy');
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');

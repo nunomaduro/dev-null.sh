@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\ApiErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -44,6 +46,11 @@ final readonly class ThrottleCommits
         if ($request->routeIs('cli-commit.store')) {
             return response($message."\n", 429, ['Retry-After' => $retryAfter])
                 ->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        // The mobile app reads JSON with a code...
+        if ($request->routeIs('api-commit.store')) {
+            return new ApiException(ApiErrorCode::RateLimited, $message, ['Retry-After' => $retryAfter])->render();
         }
 
         if ($request->expectsJson()) {

@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Dto\SshPublicKey;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\SshKeyPair;
@@ -23,6 +25,42 @@ it('authenticates a request signed with a key on the github account of the user'
 
     $this->assertAuthenticatedAs($this->user);
 });
+
+it('accepts requests signed by ssh-keygen over the documented message', function (string $message, string $signature, int $status): void {
+    $this->travelTo(CarbonImmutable::createFromTimestamp(1791000000));
+
+    // Made with `ssh-keygen -t ed25519`, then `ssh-keygen -Y sign -n devnull-api` over each message...
+    $publicKey = SshPublicKey::fromOpenSsh('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIrhcHdLGpoKRYqI6eBWDeFu3VITYyTHDGiQ7QhYXCPa vector');
+    $user = User::factory()->create();
+
+    SshKey::factory()->for($user)->withPublicKey($publicKey)->create();
+
+    fakeGitHubSshKeys($user, [$publicKey]);
+
+    [$timestamp, $nonce, $method, $target, $body] = explode("\n", $message, 5);
+
+    $response = $this->call($method, $target, server: [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_X_DEVNULL_TIMESTAMP' => $timestamp,
+        'HTTP_X_DEVNULL_NONCE' => $nonce,
+        'HTTP_X_SSH_SIGNATURE' => $signature,
+    ], content: $body);
+
+    $response->assertStatus($status);
+
+    $this->assertAuthenticatedAs($user);
+})->with([
+    'with a query and no body' => [
+        "1791000000\n4f3c2b1a09e8d7c6b5a4938271605f4e\nGET\n/api/v1/log/latest?cursor=abc\n",
+        'U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgiuFwd0samgpFiojp4FYN4W7dUhNjJMcMaJDtCFhcI9oAAAALZGV2bnVsbC1hcGkAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKZ8la0GdO1nis8Bj7T2TApm89jTsN0of83/YJILbEsR6k/1q08FOHkSl3eZRIPoRVIjJTkXvqWhKlGMe31QwBw==',
+        200,
+    ],
+    'with the raw body, spaces and trailing newline included' => [
+        "1791000000\n0123456789abcdef0123456789abcdef\nPOST\n/api/v1/commits\n{\"body\": \"It was DNS.\", \"parent_id\": null}\n",
+        'U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgiuFwd0samgpFiojp4FYN4W7dUhNjJMcMaJDtCFhcI9oAAAALZGV2bnVsbC1hcGkAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZrHU0K+nsKCLlC5abo8rZbyiRE0aBSBDvXD2285XW8VE/L1Zx6VBP+Hx+XltHDV9TfGNJPDW+lmrHvsIEjU8BA==',
+        201,
+    ],
+]);
 
 it('rejects a request that differs from the one that was signed', function (): void {
     $server = signApiRequest($this->keyPair, 'GET', route('api-current-user.show'));

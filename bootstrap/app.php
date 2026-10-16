@@ -10,12 +10,14 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
+use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
@@ -72,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
             return response(($message ?: Response::$statusTexts[$status] ?? 'Error.')."\n", $status, $headers)
                 ->header('Content-Type', 'text/plain; charset=utf-8');
         });
+
+        // The limits the web puts on social actions apply to the mobile app too, and answer it with a code...
+        $exceptions->render(fn (ThrottleRequestsException $exception, Request $request): ?JsonResponse => $request->is('api/v1/*') && $request->user() instanceof User
+            ? new ApiException(ApiErrorCode::RateLimited, $exception->getMessage(), $exception->getHeaders())->render()
+            : null);
 
         // Signed requests from the mobile app also check keys against GitHub...
         $exceptions->render(fn (ConnectionException|RequestException $exception, Request $request): ?JsonResponse => $request->is('api/v1/*')

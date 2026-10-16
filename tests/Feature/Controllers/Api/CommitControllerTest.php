@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
@@ -364,3 +366,172 @@ it('links the topmost ancestor to its parent when a thread is too deep to show i
         ->assertJsonMissingPath('ancestors.1.parent');
 });
 
+it('creates a commit from a signed request, pending review', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => '  It was DNS :tada:  ']);
+
+    $commit = $user->commits()->sole();
+
+    $response->assertCreated()
+        ->assertJsonPath('data.id', $commit->id)
+        ->assertJsonPath('data.body', 'It was DNS 🎉')
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.replies_count', 0)
+        ->assertJsonPath('data.stars_count', 0)
+        ->assertJsonPath('data.starred', false)
+        ->assertJsonPath('data.is_saved', false)
+        ->assertJsonPath('data.images', [])
+        ->assertJsonPath('data.author.id', $user->id)
+        ->assertJsonMissingPath('ancestors');
+
+    expect($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('publishes the commits of admins right away', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    config(['app.admins' => [$user->username]]);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'])
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'approved');
+});
+
+it('replies to a commit from a signed request', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $parent = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.', 'parent_id' => $parent->id])
+        ->assertCreated()
+        ->assertJsonPath('data.parent_id', $parent->id);
+
+    expect($user->commits()->sole()->parent_id)->toBe($parent->id);
+});
+
+it('validates a commit from a signed request', function (Closure $data, string $field, string $message): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), $data())
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse();
+})->with([
+    'missing body' => [fn (): array => [], 'body', 'The body field is required.'],
+    'too short' => [fn (): array => ['body' => '  ab  '], 'body', 'The body field must be at least 3 characters.'],
+    'too long' => [fn (): array => ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)], 'body', 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.'],
+    'parent that is not a uuid' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => 'abc'], 'parent_id', 'The parent id field must be a valid UUID.'],
+    'unknown parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => '0199e3a4-0000-7000-8000-000000000000'], 'parent_id', 'That commit is no longer available to reply to.'],
+    'hidden parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => Commit::factory()->pending()->create()->id], 'parent_id', 'That commit is no longer available to reply to.'],
+    'deleted parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => tap(Commit::factory()->create())->delete()->id], 'parent_id', 'That commit is no longer available to reply to.'],
+]);
+
+it('may not reply to a commit across a block, as on the web', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $parent = Commit::factory()->create();
+
+    $parent->user->blocking()->attach($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.', 'parent_id' => $parent->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+
+    expect($user->commits()->exists())->toBeFalse();
+});
+
+it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.']);
+
+    $response->assertCreated();
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->id === $response->json('data.id'));
+});
+
+it('collapses blank lines before measuring a body, like the web does', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => "It was DNS.\r\n\n\n\n\nIt always is."])
+        ->assertCreated()
+        ->assertJsonPath('data.body', "It was DNS.\n\nIt always is.");
+});
+
+it('counts each emoji as one character, like the web does', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => str_repeat('🚀', Commit::MAX_BODY_LENGTH)])
+        ->assertCreated();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => str_repeat('🚀', Commit::MAX_BODY_LENGTH + 1)])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['body' => 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.']);
+
+    expect($user->commits()->sole()->body)->toBe(str_repeat('🚀', Commit::MAX_BODY_LENGTH));
+});
+
+it('limits a signed-in user to 10 commits a minute, in json', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    foreach (range(1, 10) as $attempt) {
+        signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => "Commit {$attempt}"])->assertCreated();
+    }
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'One too many'])
+        ->assertTooManyRequests()
+        ->assertExactJson(['message' => 'Slow down: 10 commits a minute. Even CI takes breaks.', 'code' => 'rate_limited'])
+        ->assertHeader('Retry-After', '60');
+
+    expect($user->commits()->count())->toBe(10);
+});
+
+it('deletes a commit of the signed-in user', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = Commit::factory()->for($user)->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertNoContent();
+
+    $this->assertSoftDeleted($commit);
+});
+
+it('may not delete a commit that is already deleted', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = tap(Commit::factory()->for($user)->create())->delete();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertNotFound();
+});
+
+it('may not delete the commits of others', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $commit = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertForbidden();
+
+    $this->assertNotSoftDeleted($commit);
+});
+
+it('rejects commits and deletes that are not signed', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->postJson(route('api-commit.store'), ['body' => 'It was DNS.'])->assertUnauthorized();
+    $this->deleteJson(route('api-commit.destroy', $commit))->assertUnauthorized();
+
+    expect(Commit::query()->count())->toBe(1);
+    $this->assertNotSoftDeleted($commit);
+});
