@@ -18,8 +18,12 @@
         "laravel/wayfinder": "^0.1.22",
         "league/flysystem-aws-s3-v3": "^3.35.3",
         "nunomaduro/essentials": "^1.2.0",
+        "php-tui/php-tui": "^0.2.1",
         "phpseclib/phpseclib": "^4.0.2",
         "tempest/highlight": "^2.28.1"
+    },
+    "suggest": {
+        "prateekbhujel/php-terminal": "Enables native C-level POSIX raw I/O acceleration without stty subprocesses."
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.6.2",
