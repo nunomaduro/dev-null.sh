@@ -80,6 +80,8 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
 
+`GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it also says `is_ranked` and the `newest_commit_id` when it was loaded. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, and Trending also returns them as `latest_commits`, the way the web offers them above it. An empty Following log comes with a few `suggestions`.
+
 Each request sends three headers:
 
 | Header | Value |
