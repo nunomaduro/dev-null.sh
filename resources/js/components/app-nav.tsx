@@ -123,7 +123,7 @@ function NavIcon({
 }
 
 export function AppNav({ onSearch }: { onSearch: () => void }) {
-    const { auth } = usePage().props;
+    const { auth, onlineDevelopersCount } = usePage().props;
     const items = useNavItems();
 
     return (
@@ -137,6 +137,22 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                 <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
                 <span className="mt-1 hidden text-sm text-muted-foreground lg:block">
                     a social network for devs
+                </span>
+                <span
+                    className="mt-2 hidden items-center gap-2 font-mono text-xs text-muted-foreground lg:flex"
+                    data-test="nav-online-developers"
+                >
+                    <span
+                        aria-hidden
+                        className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                    />
+                    <span>
+                        {onlineDevelopersCount}{' '}
+                        {onlineDevelopersCount === 1
+                            ? 'developer'
+                            : 'developers'}{' '}
+                        online
+                    </span>
                 </span>
             </Link>
 

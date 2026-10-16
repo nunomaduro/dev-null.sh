@@ -14,6 +14,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             suggestedUsers?: SuggestedUser[];
+            onlineDevelopersCount: number;
             [key: string]: unknown;
         };
     }

@@ -39,6 +39,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
+ * @property-read CarbonInterface|null $last_active_at
  */
 #[Hidden([
     'github_id',
@@ -46,6 +47,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'remember_token',
     'preferred_lane',
     'pinned_commit_id',
+    'last_active_at',
 ])]
 final class User extends Authenticatable
 {
@@ -73,6 +75,7 @@ final class User extends Authenticatable
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
             'remember_token' => 'string',
+            'last_active_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
