@@ -82,6 +82,8 @@ The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the d
 
 `GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it also says `is_ranked` and the `newest_commit_id` when it was loaded. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, and Trending also returns them as `latest_commits`, the way the web offers them above it. An empty Following log comes with a few `suggestions`.
 
+`GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `replies`, `quotes`, `stars`, `mentions`, `follows` or `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
+
 Each request sends three headers:
 
 | Header | Value |

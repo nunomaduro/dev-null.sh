@@ -50,8 +50,10 @@ it('lists the notifications of the user, newest first', function (): void {
             'reason' => null,
             'read_at' => now()->toIso8601ZuluString(),
             'created_at' => now()->toIso8601ZuluString(),
-            'actor' => $user($replied->actor),
-            'actors' => [$user($replied->actor)],
+            'actor' => [...$user($replied->actor), 'is_followed' => false],
+            'actors' => [[...$user($replied->actor), 'is_followed' => false]],
+            'group_id' => $replied->id,
+            'event_count' => 1,
             'actors_count' => 1,
             'unread_count' => 0,
             'commit' => [
@@ -238,6 +240,129 @@ it('groups stars per commit, newest stargazer first, like the web', function ():
     expect($this->user->notifications()->unread()->exists())->toBeFalse();
 });
 
+it('filters notifications by type like the web, and echoes the filter', function (?string $type, array $types): void {
+    $approved = Commit::factory()->for($this->user)->create();
+    $rejected = Commit::factory()->for($this->user)->rejected()->create();
+
+    Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(7)]);
+    Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(6)]);
+    Notification::factory()->for($this->user, 'recipient')->quoted()->create(['created_at' => now()->subMinutes(5)]);
+    Notification::factory()->for($this->user, 'recipient')->starred()->create(['created_at' => now()->subMinutes(4)]);
+    Notification::factory()->for($this->user, 'recipient')->mentioned()->create(['created_at' => now()->subMinutes(3)]);
+    Notification::factory()->for($this->user, 'recipient')->for($approved, 'commit')->create(['type' => NotificationType::Approved, 'created_at' => now()->subMinutes(2)]);
+    Notification::factory()->for($this->user, 'recipient')->for($rejected, 'commit')->create(['type' => NotificationType::Rejected, 'reason' => 'Please remove the token.', 'created_at' => now()->subMinute()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index', $type === null ? [] : ['type' => $type]))
+        ->assertOk()
+        ->assertJsonPath('data.*.type', $types)
+        ->assertJsonPath('filters', ['type' => $type ?? 'all']);
+})->with([
+    'no filter' => [null, ['rejected', 'approved', 'mentioned', 'starred', 'quoted', 'replied', 'followed']],
+    'all' => ['all', ['rejected', 'approved', 'mentioned', 'starred', 'quoted', 'replied', 'followed']],
+    'replies' => ['replies', ['replied']],
+    'quotes' => ['quotes', ['quoted']],
+    'stars' => ['stars', ['starred']],
+    'mentions' => ['mentions', ['mentioned']],
+    'follows' => ['follows', ['followed']],
+    'moderation' => ['moderation', ['rejected', 'approved']],
+]);
+
+it('marks every notification as read whatever the filter, as the web does', function (): void {
+    $followed = Notification::factory()->for($this->user, 'recipient')->create();
+    $replied = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index', ['type' => 'follows']))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$followed->id]);
+
+    expect($replied->refresh()->read_at)->not->toBeNull();
+});
+
+it('validates the filter before marking anything as read', function (array $query, string $field): void {
+    $notification = Notification::factory()->for($this->user, 'recipient')->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index', $query))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($field);
+
+    expect($notification->refresh()->read_at)->toBeNull();
+})->with([
+    'an unknown type' => [['type' => 'secret'], 'type'],
+    'a date that is not one' => [['through' => 'yesterday-ish'], 'through'],
+]);
+
+it('lists every group through a date when asked, like the web refreshing its inbox', function (): void {
+    $notifications = Notification::factory()->for($this->user, 'recipient')->replied()->count(22)
+        ->sequence(fn ($sequence): array => ['created_at' => now()->subHours($sequence->index * 2)])
+        ->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertJsonCount(20, 'data');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index', ['through' => $notifications->last()->created_at->toJSON()]))
+        ->assertJsonCount(22, 'data');
+});
+
+it('says which group a notification leads, how many events it has, and whether the user follows the actor', function (): void {
+    $first = Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
+    $latest = Notification::factory()->for($this->user, 'recipient')->create();
+    $this->user->following()->attach($latest->actor);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $latest->id)
+        ->assertJsonPath('data.0.group_id', $first->id)
+        ->assertJsonPath('data.0.event_count', 2)
+        ->assertJsonPath('data.0.actors_count', 2)
+        ->assertJsonPath('data.0.actor.is_followed', true)
+        ->assertJsonPath('data.0.actors.*.id', [$latest->actor_id, $first->actor_id])
+        ->assertJsonMissingPath('data.0.actors.0.is_followed');
+});
+
+it('lists the notifications of a group like the web expands it', function (): void {
+    $commit = Commit::factory()->for($this->user)->create();
+    $old = Notification::factory()->for($this->user, 'recipient')->starred($commit)->create(['created_at' => now()->subDays(2)]);
+    Notification::factory()->for($this->user, 'recipient')->replied($commit)->create(['created_at' => now()->subMinute()]);
+    $latest = Notification::factory()->for($this->user, 'recipient')->starred($commit)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', [$latest, 'type' => 'stars']))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$latest->id, $old->id])
+        ->assertJsonPath('data.0.group_id', $old->id)
+        ->assertJsonPath('data.0.commit.id', $commit->id)
+        ->assertJsonPath('data.0.commit.author.id', $this->user->id)
+        ->assertJsonMissingPath('data.0.actors')
+        ->assertJsonPath('meta.next_cursor', null);
+
+    expect($latest->refresh()->read_at)->toBeNull();
+});
+
+it('returns not found for the group of a notification the user may not see', function (): void {
+    $other = Notification::factory()->create();
+    $hidden = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    $hidden->commit->update(['status' => CommitStatus::Rejected]);
+
+    foreach ([$other, $hidden] as $notification) {
+        signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $notification))->assertNotFound();
+    }
+});
+
+it('leaves out what muted people and people across a block did, as the web does', function (): void {
+    $kept = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    $muted = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    $blocked = Notification::factory()->for($this->user, 'recipient')->mentioned()->create();
+    $this->user->muting()->attach($muted->actor);
+    $blocked->actor->blocking()->attach($this->user);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$kept->id]);
+
+    expect($muted->refresh()->read_at)->toBeNull();
+});
+
 it('rejects requests that are not signed', function (): void {
     $this->getJson(route('api-notification.index'))->assertUnauthorized();
+    $this->getJson(route('api-notification-group.show', Notification::factory()->create()))->assertUnauthorized();
 });

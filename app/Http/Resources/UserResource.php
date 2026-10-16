@@ -38,6 +38,7 @@ final class UserResource extends JsonResource
             'followers_count' => $this->whenCounted('followers'),
             'following_count' => $this->whenCounted('following'),
             'lane' => $this->when($request->user() instanceof User, fn (): int => $this->lane()),
+            'is_followed' => $this->whenHas('is_followed'),
         ];
     }
 }

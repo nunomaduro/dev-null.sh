@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
@@ -72,5 +73,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
+        Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('api-notification-group.show');
     });
 });

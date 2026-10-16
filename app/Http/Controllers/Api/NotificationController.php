@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Actions\UpdateNotificationsReadAt;
+use App\Http\Requests\ListNotificationsRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Models\User;
@@ -18,15 +19,15 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 final readonly class NotificationController
 {
     /**
-     * The notifications grouped like the web groups them. As on the web, listing them marks every notification as
-     * read, and read_at says when, so the ones read since then are the new ones. A commit comes with its author and
-     * the commit it replies to, when the user may see it.
+     * The notifications grouped and filtered by ?type= like the web does it. As on the web, listing them marks every
+     * notification as read, whatever the filter, and read_at says when, so the ones read since then are the new ones.
+     * A commit comes with its author and the commit it replies to, when the user may see it.
      */
-    public function index(#[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): AnonymousResourceCollection
+    public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): AnonymousResourceCollection
     {
         $readAt = $action->handle($user);
 
-        $notifications = $query->paginate($user);
+        $notifications = $query->paginate($user, $request->type(), $request->through());
 
         /** @var array<int, Notification> $items */
         $items = $notifications->items();
@@ -39,6 +40,7 @@ final readonly class NotificationController
         ]);
 
         return NotificationResource::collection($notifications)->additional([
+            'filters' => ['type' => $request->type()],
             'read_at' => $readAt->toIso8601ZuluString(),
         ]);
     }
