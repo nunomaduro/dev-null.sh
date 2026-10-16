@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Classification;
+use Laravel\Ai\Classification\Boolean;
+use Laravel\Ai\Files\Image;
+use Laravel\Ai\Responses\Data\BooleanAnswer;
 
 final readonly class OpenAI
 {
-    private const string MODERATION_MODEL = 'omni-moderation-latest';
-
-    private const string VISION_MODEL = 'gpt-6-astra';
-
     /**
-     * Far stricter than OpenAI's own cut-off: any category scoring this much is flagged.
+     * Far stricter than a coin flip: any category this likely is flagged.
      */
     private const float STRICT_THRESHOLD = 0.2;
 
@@ -25,109 +23,82 @@ final readonly class OpenAI
         'sexual/minors' => 0.01,
     ];
 
-    private const string MINORS_INSTRUCTIONS = <<<'TEXT'
-        You review images uploaded to devnull, a social network for developers, before they are published.
-        Answer whether any person in the images is, or could plausibly be, under 18 years old. That includes babies,
-        children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
-        TEXT;
+    /**
+     * @var array<string, string>
+     */
+    private const array CATEGORIES = [
+        'harassment' => 'Content that expresses, incites or promotes harassing language towards any target.',
+        'harassment/threatening' => 'Harassment that also includes violence or serious harm towards any target.',
+        'hate' => 'Content that expresses, incites or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability or caste.',
+        'hate/threatening' => 'Hateful content that also includes violence or serious harm towards the targeted group.',
+        'illicit' => 'Content that gives advice or instructions for committing wrongdoing, such as how to shoplift or build a weapon.',
+        'self-harm' => 'Content that promotes, encourages or depicts acts of self-harm, such as suicide, cutting and eating disorders.',
+        'sexual' => 'Content meant to arouse sexual excitement, or that promotes sexual services.',
+        'sexual/minors' => 'Sexual content that includes an individual who is under 18 years old.',
+        'violence' => 'Content that depicts death, violence or physical injury.',
+        'violence/graphic' => 'Content that depicts death, violence or physical injury in graphic detail.',
+    ];
 
-    public function request(): PendingRequest
-    {
-        return Http::baseUrl('https://api.openai.com/v1')
-            ->withToken(config()->string('services.openai.key'))
-            ->acceptJson()
-            ->connectTimeout(3)
-            ->timeout(15);
-    }
+    private const string MINORS_INSTRUCTIONS = 'Is any person in the images, or could any plausibly be, under 18 years old? That includes babies, children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.';
 
     /**
-     * The categories the content is flagged for, if any: those OpenAI flags, and those scoring above our own, stricter
-     * thresholds. The text goes along with the first image, and every other image is checked on its own, as a single
-     * request is only documented to take one image.
+     * The categories the content is flagged for, if any: those scoring above our strict thresholds. The images go
+     * along with the text, so they are judged together.
      *
      * @param  list<string>  $imageDataUrls
      * @return list<string>
      */
     public function moderate(string $text, array $imageDataUrls = []): array
     {
-        $inputs = [[['type' => 'text', 'text' => $text]]];
+        $questions = [];
 
-        foreach ($imageDataUrls as $index => $imageDataUrl) {
-            $image = ['type' => 'image_url', 'image_url' => ['url' => $imageDataUrl]];
-
-            if ($index === 0) {
-                $inputs[0][] = $image;
-            } else {
-                $inputs[] = [$image];
-            }
+        foreach (self::CATEGORIES as $category => $description) {
+            $questions[$category] = new Boolean($description);
         }
+
+        $answers = Classification::of(
+            $text === '' ? 'No text, only images.' : $text,
+            array_map(self::image(...), $imageDataUrls),
+        )
+            ->questions($questions)
+            ->timeout(60)
+            ->classify(provider: 'openai');
 
         $categories = [];
 
-        foreach ($inputs as $input) {
-            /** @var list<array{categories: array<string, bool>, category_scores: array<string, float>}> $results */
-            $results = $this->request()
-                ->post('moderations', ['model' => self::MODERATION_MODEL, 'input' => $input])
-                ->throw()
-                ->json('results');
+        foreach (array_keys(self::CATEGORIES) as $category) {
+            $answer = $answers->answer($category);
+            assert($answer instanceof BooleanAnswer);
 
-            foreach ($results as $result) {
-                foreach ($result['categories'] as $category => $isFlagged) {
-                    if ($isFlagged || ($result['category_scores'][$category] ?? 0.0) >= (self::THRESHOLDS[$category] ?? self::STRICT_THRESHOLD)) {
-                        $categories[] = $category;
-                    }
-                }
+            if ($answer->isTrue(self::THRESHOLDS[$category] ?? self::STRICT_THRESHOLD)) {
+                $categories[] = $category;
             }
         }
 
-        return array_values(array_unique($categories));
+        return $categories;
     }
 
     /**
-     * Whether a minor may appear in any of the images. The moderation model can't tell, so a vision model is asked
-     * instead. Anything but a clear no, such as a refusal or an answer that can't be read, counts as a yes.
+     * Whether a minor may appear in any of the images. Anything but a clear no counts as a yes.
      *
      * @param  list<string>  $imageDataUrls
      */
     public function showsMinors(array $imageDataUrls): bool
     {
-        /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
-        $output = $this->request()
+        $answer = Classification::of('Images uploaded to devnull, a social network for developers.', array_map(self::image(...), $imageDataUrls))
+            ->question('minors', new Boolean(self::MINORS_INSTRUCTIONS))
             ->timeout(60)
-            ->post('responses', [
-                'model' => self::VISION_MODEL,
-                'input' => [
-                    ['role' => 'system', 'content' => self::MINORS_INSTRUCTIONS],
-                    ['role' => 'user', 'content' => array_map(
-                        fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
-                        $imageDataUrls,
-                    )],
-                ],
-                'text' => ['format' => [
-                    'type' => 'json_schema',
-                    'name' => 'minors',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => ['minors' => ['type' => 'boolean']],
-                        'required' => ['minors'],
-                        'additionalProperties' => false,
-                    ],
-                ]],
-            ])
-            ->throw()
-            ->json('output', []);
+            ->classify(provider: 'openai')
+            ->answer('minors');
+        assert($answer instanceof BooleanAnswer);
 
-        foreach ($output as $item) {
-            foreach ($item['content'] ?? [] as $content) {
-                if ($content['type'] === 'output_text') {
-                    $answer = json_decode($content['text'] ?? '', true);
+        return $answer->isTrue(self::STRICT_THRESHOLD);
+    }
 
-                    return ! is_array($answer) || $answer['minors'] !== false;
-                }
-            }
-        }
+    private static function image(string $imageDataUrl): Image
+    {
+        [$header, $base64] = explode(',', $imageDataUrl, 2);
 
-        return true;
+        return Image::fromBase64($base64, mb_substr($header, 5, (int) mb_strpos($header, ';') - 5));
     }
 }

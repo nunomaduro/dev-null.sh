@@ -134,7 +134,7 @@ it('does not notify about pending mentions', function (): void {
 });
 
 it('asks the ai for its decision on pending commits', function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
@@ -145,7 +145,7 @@ it('asks the ai for its decision on pending commits', function (): void {
 });
 
 it('does not ask the ai about commits of admins', function (): void {
-    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    config(['ai.providers.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
@@ -156,7 +156,7 @@ it('does not ask the ai about commits of admins', function (): void {
 });
 
 it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
     Storage::fake();
     Queue::fake([ModerateCommit::class, UnfurlLink::class]);
 
@@ -181,7 +181,7 @@ it('queues ai review for a quote while preserving its images and chosen link car
 });
 
 it('does not ask the ai without an api key', function (): void {
-    config(['services.openai.key' => null]);
+    config(['ai.providers.openai.key' => null]);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);

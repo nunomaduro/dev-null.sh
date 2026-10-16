@@ -8,8 +8,10 @@ use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Ai\Classification;
+use Laravel\Ai\Prompts\ClassificationPrompt;
+use Laravel\Ai\Responses\Data\BooleanAnswer;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
@@ -69,11 +71,11 @@ it('shows the ai decision on commits and their series parts', function (): void 
 });
 
 it('keeps ai suggestions private and notifies the quoted author only after moderator approval', function (): void {
-    config(['services.openai.key' => 'sk-test']);
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(['results' => [[
-        'categories' => ['harassment' => true],
-        'category_scores' => ['harassment' => 0.9],
-    ]]])]);
+    config(['ai.providers.openai.key' => 'sk-test']);
+    Classification::fake(fn (ClassificationPrompt $prompt): array => array_map(
+        fn (string $key): BooleanAnswer => new BooleanAnswer($key === 'harassment' ? 0.9 : 0.0),
+        array_combine(array_keys($prompt->questions), array_keys($prompt->questions)),
+    ));
 
     $admin = User::factory()->create(['username' => 'admin']);
     $quoted = Commit::factory()->create([

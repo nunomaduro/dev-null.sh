@@ -79,7 +79,7 @@ final readonly class CreateCommit
             }
 
             $this->createWorldReply->handle($commit);
-            if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
+            if ($commit->status === CommitStatus::Pending && filled(config('ai.providers.openai.key'))) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
