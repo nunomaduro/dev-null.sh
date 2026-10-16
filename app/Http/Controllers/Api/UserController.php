@@ -27,6 +27,7 @@ final readonly class UserController
 
             return UserResource::make($user->loadCounts($currentUser))->additional([
                 'is_following' => $currentUser->isFollowing($user),
+                'follows_you' => $user->isFollowing($currentUser),
                 'activity' => $activity->get($user, $currentUser),
                 'streaks' => $streaks->get($user, $currentUser),
                 'pinned_commit' => $pinnedCommit instanceof Commit ? CommitResource::make($pinnedCommit) : null,

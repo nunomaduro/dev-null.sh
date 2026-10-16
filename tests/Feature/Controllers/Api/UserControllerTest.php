@@ -116,6 +116,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
                 'lane' => $user->lane(),
             ],
             'is_following' => true,
+            'follows_you' => false,
             'activity' => resolve(UserActivityQuery::class)->get($user, $viewer),
             'streaks' => ['longest' => 1, 'current' => 1],
             'pinned_commit' => null,
@@ -135,12 +136,26 @@ it('counts the pending commits of a signed-in user on their own profile', functi
     $this->getJson(route('api-user.show', $user))
         ->assertOk()
         ->assertJsonPath('data.commits_count', 0)
-        ->assertJsonMissingPath('is_following');
+        ->assertJsonMissingPath('is_following')
+        ->assertJsonMissingPath('follows_you');
 
     signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
         ->assertOk()
         ->assertJsonPath('data.commits_count', 1)
         ->assertJsonPath('is_following', false);
+});
+
+it('tells a signed request whether the profile follows its user', function (): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $user = User::factory()->create();
+
+    $user->following()->attach($viewer);
+
+    signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('is_following', false)
+        ->assertJsonPath('follows_you', true);
 });
 
 it('shows a signed request the pinned commit of the profile', function (): void {
