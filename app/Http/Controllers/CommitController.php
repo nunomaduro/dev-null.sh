@@ -13,6 +13,7 @@ use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -26,7 +27,7 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
         $threadReplies = $replies->paginate($commit, $currentUser);
 
@@ -35,10 +36,7 @@ final readonly class CommitController
             $threadReplies->items(),
         );
 
-        $commit = Commit::query()
-            ->withVisibleReplyCount($currentUser)
-            ->withCardDataFor($currentUser)
-            ->findOrFail($commit->id);
+        $commit = $page->get($commit, $currentUser);
 
         return Inertia::render('commit/show', [
             'commit' => $commit,

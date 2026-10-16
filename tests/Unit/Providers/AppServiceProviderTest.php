@@ -66,3 +66,21 @@ it('limits each address to 60 public api requests a minute', function (): void {
         ->and($limit->maxAttempts)->toBe(60)
         ->and($limit->decaySeconds)->toBe(60);
 });
+
+it('limits each signed-in user to 120 api requests a minute, whatever their address', function (): void {
+    $user = User::factory()->create();
+
+    $request = Request::create('/api/v1/users/octocat', server: ['REMOTE_ADDR' => '203.0.113.7']);
+    $request->setUserResolver(fn (): User => $user);
+
+    $limiter = RateLimiter::limiter('api');
+
+    assert($limiter instanceof Closure);
+
+    $limit = $limiter($request);
+
+    expect($limit)->toBeInstanceOf(Limit::class)
+        ->and($limit->key)->toBe($user->id)
+        ->and($limit->maxAttempts)->toBe(120)
+        ->and($limit->decaySeconds)->toBe(60);
+});

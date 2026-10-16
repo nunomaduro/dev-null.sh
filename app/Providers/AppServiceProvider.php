@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
+use App\Enums\ApiErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -80,7 +82,17 @@ final class AppServiceProvider extends ServiceProvider
             });
         });
 
-        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+        // The mobile app's 429 comes with a code. The public API's stays as it is...
+        $rateLimited = fn (Request $request, array $headers): JsonResponse => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', $headers)->render();
+
+        RateLimiter::for('api', function (Request $request) use ($rateLimited): Limit {
+            $user = $request->user();
+
+            // Signed requests from the mobile app share one budget per user, whichever network the phone is on...
+            return $user instanceof User
+                ? Limit::perMinute(120)->by($user->id)->response($rateLimited)
+                : Limit::perMinute(60)->by((string) $request->ip());
+        });
 
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));

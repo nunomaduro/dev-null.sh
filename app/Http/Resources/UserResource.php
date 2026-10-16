@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
+ * A user's public profile, with their counts when they were loaded. A signed request also gets the lane, the color
+ * the web draws them in.
+ *
  * @mixin User
  */
 final class UserResource extends JsonResource
@@ -34,6 +37,7 @@ final class UserResource extends JsonResource
             'commits_count' => $this->whenCounted('commits'),
             'followers_count' => $this->whenCounted('followers'),
             'following_count' => $this->whenCounted('following'),
+            'lane' => $this->when($request->user() instanceof User, fn (): int => $this->lane()),
         ];
     }
 }
