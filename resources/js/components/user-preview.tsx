@@ -22,6 +22,8 @@ type Position =
     | { left: number; top: number; bottom?: never }
     | { left: number; bottom: number; top?: never };
 
+type Point = { x: number; y: number };
+
 const openDelay = 450;
 const closeDelay = 200;
 const previewWidth = 304;
@@ -59,6 +61,40 @@ function positionFor(trigger: HTMLElement): Position {
         : { left, top: rect.bottom + 8 };
 }
 
+function isSamePosition(current: Position, next: Position): boolean {
+    return (
+        current.left === next.left &&
+        current.top === next.top &&
+        current.bottom === next.bottom
+    );
+}
+
+function isOnScreen(trigger: HTMLElement): boolean {
+    const rect = trigger.getBoundingClientRect();
+
+    return (
+        trigger.isConnected && rect.bottom > 0 && rect.top < window.innerHeight
+    );
+}
+
+function isPointWithin(
+    element: HTMLElement | null,
+    point: Point | null,
+): boolean {
+    if (!element || !point) {
+        return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+
+    return (
+        point.x >= rect.left &&
+        point.x <= rect.right &&
+        point.y >= rect.top &&
+        point.y <= rect.bottom
+    );
+}
+
 export function UserPreview({
     user,
     children,
@@ -71,6 +107,8 @@ export function UserPreview({
     onHoverChange?: (isHovering: boolean) => void;
 }) {
     const triggerRef = useRef<HTMLSpanElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+    const pointer = useRef<Point | null>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [position, setPosition] = useState<Position | null>(null);
     const [data, setData] = useState<PreviewData | null>(
@@ -104,8 +142,10 @@ export function UserPreview({
 
     const keepOpen = () => clearTimeout(timer.current);
 
+    const isOpen = position !== null;
+
     useEffect(() => {
-        if (!position) {
+        if (!isOpen) {
             return;
         }
 
@@ -115,14 +155,61 @@ export function UserPreview({
             }
         };
 
-        window.addEventListener('scroll', close, { passive: true });
+        const onPointerMove = (event: PointerEvent) => {
+            pointer.current = { x: event.clientX, y: event.clientY };
+        };
+
+        let anchoredAt = triggerRef.current
+            ? positionFor(triggerRef.current)
+            : null;
+        let frame = 0;
+
+        const followTrigger = () => {
+            const trigger = triggerRef.current;
+
+            if (!trigger || !isOnScreen(trigger)) {
+                close();
+
+                return;
+            }
+
+            const next = positionFor(trigger);
+
+            if (!anchoredAt || !isSamePosition(anchoredAt, next)) {
+                anchoredAt = next;
+
+                if (
+                    !isPointWithin(trigger, pointer.current) &&
+                    !isPointWithin(cardRef.current, pointer.current)
+                ) {
+                    close();
+
+                    return;
+                }
+
+                setPosition(next);
+            }
+
+            frame = requestAnimationFrame(followTrigger);
+        };
+
+        frame = requestAnimationFrame(followTrigger);
+        window.addEventListener('pointermove', onPointerMove, {
+            passive: true,
+        });
+        window.addEventListener('scroll', close, {
+            capture: true,
+            passive: true,
+        });
         window.addEventListener('keydown', onKeyDown);
 
         return () => {
-            window.removeEventListener('scroll', close);
+            cancelAnimationFrame(frame);
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('scroll', close, { capture: true });
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [position]);
+    }, [isOpen]);
 
     useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -130,7 +217,8 @@ export function UserPreview({
         <>
             <span
                 ref={triggerRef}
-                onMouseEnter={() => {
+                onMouseEnter={(event) => {
+                    pointer.current = { x: event.clientX, y: event.clientY };
                     onHoverChange?.(true);
                     scheduleOpen();
                 }}
@@ -146,6 +234,7 @@ export function UserPreview({
             {position &&
                 createPortal(
                     <div
+                        ref={cardRef}
                         role="dialog"
                         aria-label={`About @${user.username}`}
                         onMouseEnter={keepOpen}

@@ -106,7 +106,7 @@ export function CommitCard({
                 <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
                     <UserPreview
                         user={commit.user}
-                        className="shrink-0"
+                        className="shrink-0 self-start"
                         onHoverChange={onAuthorHover}
                     >
                         <Link

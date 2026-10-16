@@ -457,7 +457,7 @@ function CommitReply({
     return (
         <article className="group/reply pt-2.5" data-test="reply">
             <div className="flex gap-2 sm:gap-2.5">
-                <UserPreview user={reply.user} className="shrink-0">
+                <UserPreview user={reply.user} className="shrink-0 self-start">
                     <Link
                         href={show(reply.user)}
                         className="block rounded-full"
