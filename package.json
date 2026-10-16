@@ -8,7 +8,7 @@
         "lint": "NODE_OPTIONS='--experimental-strip-types' vp fmt resources/ && NODE_OPTIONS='--experimental-strip-types' vp lint --fix",
         "test:lint": "NODE_OPTIONS='--experimental-strip-types' vp fmt --check resources/ && NODE_OPTIONS='--experimental-strip-types' vp lint",
         "test:types": "tsc --noEmit && tsc --noEmit --project tests/tsconfig.json",
-        "test:unit": "node --experimental-strip-types --test tests/Unit/*.test.ts"
+        "test:unit": "node --experimental-strip-types --test tests/Unit/*.test.ts && bun test tests/Unit/CommitImpressionCount.test.tsx"
     },
     "dependencies": {
         "@headlessui/react": "^2.2.10",

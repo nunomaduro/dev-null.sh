@@ -141,3 +141,6 @@ jobs:
 
       - name: Tests
         run: composer test:unit
+
+      - name: Impression Concurrency Tests
+        run: composer test:concurrency

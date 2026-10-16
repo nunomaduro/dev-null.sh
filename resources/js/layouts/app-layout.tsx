@@ -6,6 +6,7 @@ import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { SearchDialog } from '@/components/search-dialog';
+import { useCommitImpressionSession } from '@/hooks/use-commit-impression';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import type { AppLayoutProps } from '@/types';
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const openSearch = useCallback(() => setIsSearching(true), []);
 
     useKeyboardShortcuts(auth.user, auth.log, showShortcuts, openSearch);
+    useCommitImpressionSession(auth.user?.id ?? null);
     useTabSlide();
 
     return (

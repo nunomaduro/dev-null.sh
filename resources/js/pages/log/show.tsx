@@ -137,6 +137,7 @@ export default function Show({
 
             <div
                 ref={tabsRef}
+                data-impression-occluder="top"
                 className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
             >
                 <h1 className="sr-only">{titles[log]}</h1>

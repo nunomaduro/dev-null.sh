@@ -13,6 +13,8 @@ import type {
 const commit = {
     id: 'quoted',
     user_id: 'author',
+    impression_token: null,
+    impression_token_expires_at: null,
     body: "I'm leaking the Algorithm @nunomaduro\n```php\nreturn round($score, 6);\n```",
     body_segments: [
         { type: 'text', text: "I'm leaking the Algorithm @nunomaduro\n" },
@@ -46,7 +48,7 @@ async function render(
     const result = await createInertiaApp({
         page: {
             component: 'quote',
-            props: { errors: {} },
+            props: { auth: { user: null }, errors: {} },
             url: '/@author/quote',
             version: null,
             clearHistory: false,

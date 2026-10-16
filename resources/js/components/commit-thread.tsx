@@ -19,6 +19,7 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitImpressionCount } from '@/components/commit-impression-count';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
@@ -39,6 +40,7 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useCommitImpression } from '@/hooks/use-commit-impression';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -416,6 +418,11 @@ export function ThreadActions({
                 </div>
 
                 <div className="ml-auto flex items-center gap-0.5">
+                    {!isDeleted(commit) && commit.status === 'approved' && (
+                        <CommitImpressionCount
+                            count={commit.impressions_count}
+                        />
+                    )}
                     {!isDeleted(commit) && commit.is_saved !== undefined && (
                         <BookmarkButton commit={commit} />
                     )}
@@ -723,7 +730,10 @@ function CommitReply({
     thread: Thread;
     onDeleted: () => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        component,
+    } = usePage();
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
@@ -734,6 +744,16 @@ function CommitReply({
     const avatarRef = useRef<HTMLAnchorElement>(null);
 
     const isOwn = reply.user_id === auth.user?.id;
+    const impressionRef = useCommitImpression({
+        commitId: reply.id,
+        token: reply.impression_token,
+        expiresAt: reply.impression_token_expires_at,
+        viewerId: auth.user?.id ?? null,
+        eligible:
+            !isOwn &&
+            reply.status === 'approved' &&
+            component !== 'moderation/show',
+    });
     const isFlattened = depth > maxIndentDepth;
 
     const deleteReply = async () => {
@@ -760,7 +780,7 @@ function CommitReply({
             data-test="reply"
         >
             {links}
-            <div className="flex gap-2 sm:gap-2.5">
+            <div ref={impressionRef} className="flex gap-2 sm:gap-2.5">
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link

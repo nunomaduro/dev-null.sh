@@ -49,7 +49,10 @@ export default function Index({
         <>
             <Head title="Saved" />
 
-            <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
+            <header
+                data-impression-occluder="top"
+                className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6"
+            >
                 <h1 ref={headingRef} tabIndex={-1} className="font-semibold">
                     Saved
                 </h1>

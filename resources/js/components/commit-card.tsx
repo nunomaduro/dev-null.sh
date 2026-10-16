@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitImpressionCount } from '@/components/commit-impression-count';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
@@ -27,6 +28,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
+import { useCommitImpression } from '@/hooks/use-commit-impression';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
@@ -93,6 +95,16 @@ export function CommitCard({
 
     const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
     const isOwn = commit.user_id === auth.user?.id;
+    const impressionRef = useCommitImpression({
+        commitId: commit.id,
+        token: commit.impression_token,
+        expiresAt: commit.impression_token_expires_at,
+        viewerId: auth.user?.id ?? null,
+        eligible:
+            !isOwn &&
+            commit.status === 'approved' &&
+            component !== 'moderation/show',
+    });
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
@@ -174,7 +186,7 @@ export function CommitCard({
                         hasVisibleReplies ? 'pt-3' : 'border-b py-3',
                     )}
                 >
-                    <div className="flex">
+                    <div ref={impressionRef} className="flex">
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
@@ -352,6 +364,11 @@ export function CommitCard({
                                         />
                                     </div>
                                     <div className="ml-auto flex items-center gap-0.5">
+                                        {commit.status === 'approved' && (
+                                            <CommitImpressionCount
+                                                count={commit.impressions_count}
+                                            />
+                                        )}
                                         {commit.is_saved !== undefined && (
                                             <BookmarkButton commit={commit} />
                                         )}

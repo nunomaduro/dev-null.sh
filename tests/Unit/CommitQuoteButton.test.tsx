@@ -10,6 +10,8 @@ import type { Commit } from '../../resources/js/types';
 const commit = {
     id: 'quote-target',
     user_id: 'author',
+    impression_token: null,
+    impression_token_expires_at: null,
     status: 'approved',
 } as Commit;
 

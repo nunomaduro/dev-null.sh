@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
+use App\Services\CommitImpressionToken;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -38,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
+ * @property-read int $impressions_count
  * @property-read int $stars_count
  * @property-read int $pasteis_count
  * @property-read bool $starred
@@ -86,6 +88,7 @@ final class Commit extends Model
      */
     protected $attributes = [
         'pasteis_count' => 0,
+        'impressions_count' => 0,
     ];
 
     /**
@@ -100,6 +103,7 @@ final class Commit extends Model
             'root_id' => 'string',
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
+            'impressions_count' => 'integer',
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
@@ -127,7 +131,15 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body)];
+        $viewer = auth()->user();
+        $impression = resolve(CommitImpressionToken::class)->issue($this, $viewer instanceof User ? $viewer : null);
+
+        return [
+            ...parent::toArray(),
+            ...resolve(CommitBodies::class)->segments($this->body),
+            'impression_token' => $impression['token'] ?? null,
+            'impression_token_expires_at' => $impression['expires_at'] ?? null,
+        ];
     }
 
     /**

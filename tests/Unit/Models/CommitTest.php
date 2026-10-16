@@ -27,9 +27,12 @@ test('to array', function (): void {
             'quoted_commit_id',
             'root_id',
             'hot_score',
+            'impressions_count',
             'pasteis_count',
             'body_segments',
             'preview_segments',
+            'impression_token',
+            'impression_token_expires_at',
         ]);
 });
 

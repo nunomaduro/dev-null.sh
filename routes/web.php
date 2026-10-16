@@ -8,6 +8,7 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitImpressionController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
@@ -169,6 +170,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('bookmark.destroy');
 
     // Commit...
+    Route::post('commit-impressions', [CommitImpressionController::class, 'store'])
+        ->middleware('throttle:commit-impressions')
+        ->name('commit-impression.store');
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');

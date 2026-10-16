@@ -359,6 +359,7 @@ export function MobileNav() {
         <nav
             aria-label="Main"
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
+            data-impression-occluder="bottom"
         >
             {items.map((item) => (
                 <NavLink

@@ -95,7 +95,10 @@ export default function Show({
         <>
             <Head title={`${user.name} (@${user.username})`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
+            <div
+                data-impression-occluder="top"
+                className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6"
+            >
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                     {user.commits_count}{' '}

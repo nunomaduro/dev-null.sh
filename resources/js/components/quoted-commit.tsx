@@ -1,8 +1,9 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitPoll } from '@/components/commit-poll';
 import { UserAvatar } from '@/components/user-avatar';
+import { useCommitImpression } from '@/hooks/use-commit-impression';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
@@ -15,6 +16,22 @@ export function QuotedCommit({
     isPreview?: boolean;
 }) {
     const now = useNow();
+    const {
+        props: { auth },
+        component,
+    } = usePage();
+    const trackedCommit = commit !== null && !isDeleted(commit) ? commit : null;
+    const impressionRef = useCommitImpression({
+        commitId: trackedCommit?.id ?? '',
+        token: trackedCommit?.impression_token ?? null,
+        expiresAt: trackedCommit?.impression_token_expires_at ?? null,
+        viewerId: auth.user?.id ?? null,
+        eligible:
+            !isPreview &&
+            component !== 'moderation/show' &&
+            trackedCommit?.status === 'approved' &&
+            trackedCommit.user_id !== auth.user?.id,
+    });
     if (commit === null || isDeleted(commit)) {
         return (
             <p
@@ -87,6 +104,7 @@ export function QuotedCommit({
 
     return (
         <Link
+            ref={impressionRef}
             href={CommitController.show({ user: commit.user, commit })}
             className={cn(
                 className,

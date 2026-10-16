@@ -76,6 +76,8 @@ curl -s https://dev-null.sh/api/v1/users/nunomaduro/commits | jq '.data[] | {sho
 
 Every profile also has an Atom feed of its latest 50 top-level commits at `/@{username}/feed.atom`, with their images as enclosures, cached for five minutes.
 
+Commit impressions are reported by signed-in readers in batches after one continuous second of visibility. Each event requires a server-issued token bound to its viewer and commit, expiring after ten minutes. Tokens arrive with the commit data; there is no endpoint that mints tokens for arbitrary commit IDs. The server rechecks access and allows one impression per viewer and commit every thirty minutes. Expired cards need fresh server data before they can count again. Visibility remains client-reported, and impression totals do not affect ranking.
+
 ## Available Tooling
 
 ### Development
@@ -89,7 +91,8 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 - `composer test:type-coverage` - Ensures 100% type coverage with Pest
 - `composer test:types` - Runs PHPStan at the configured maximum level and TypeScript checks
 - `composer test:unit` - Runs Pest tests with 100% code coverage requirement
-- `composer test` - Runs the complete test suite (linting, static analysis, type coverage, unit tests)
+- `composer test:concurrency` - Verifies impression counting with competing PostgreSQL connections; requires PCNTL/POSIX and runs separately because it resets the test schema
+- `composer test` - Runs the complete test suite (linting, static analysis, type coverage, unit tests, then concurrency tests)
 
 ### Maintenance
 - `composer update:requirements` - Updates the PHP and frontend dependency version constraints

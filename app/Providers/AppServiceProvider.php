@@ -27,6 +27,12 @@ final class AppServiceProvider extends ServiceProvider
     {
         $this->bootRateLimitingDefaults();
 
+        RateLimiter::for('commit-impressions', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(60)->by($user instanceof User ? $user->id : (string) $request->ip());
+        });
+
         $this->bootExceptionHandling();
     }
 

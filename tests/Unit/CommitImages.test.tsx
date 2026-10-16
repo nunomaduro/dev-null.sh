@@ -18,6 +18,9 @@ const commit: Commit = {
     created_at: '2026-10-16T10:00:00Z',
     updated_at: '2026-10-16T10:00:00Z',
     stars_count: 0,
+    impressions_count: 0,
+    impression_token: null,
+    impression_token_expires_at: null,
     pasteis_count: 0,
     starred: false,
     user: {

@@ -64,6 +64,9 @@ export type Commit = {
     deleted_at?: null;
     stars_count: number;
     pasteis_count: number;
+    impressions_count: number;
+    impression_token: string | null;
+    impression_token_expires_at: number | null;
     starred: boolean;
     user: User;
     replies_count?: number;
@@ -85,6 +88,8 @@ export type QuotedCommit = Pick<
     Commit,
     | 'id'
     | 'user_id'
+    | 'impression_token'
+    | 'impression_token_expires_at'
     | 'body'
     | 'body_segments'
     | 'status'
