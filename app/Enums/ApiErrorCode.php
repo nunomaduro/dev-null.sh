@@ -11,19 +11,19 @@ namespace App\Enums;
 enum ApiErrorCode: string
 {
     case InvalidSignature = 'invalid_signature';
-    case KeyNotOnGitHub = 'key_not_on_github';
-    case RateLimited = 'rate_limited';
-    case GitHubUnreachable = 'github_unreachable';
+    case DeviceNotApproved = 'device_not_approved';
+    case InvalidGrant = 'invalid_grant';
     case UserBlocked = 'user_blocked';
     case UserUnavailable = 'user_unavailable';
+    case RateLimited = 'rate_limited';
 
     public function status(): int
     {
         return match ($this) {
-            self::InvalidSignature, self::KeyNotOnGitHub => 401,
+            self::InvalidGrant => 400,
+            self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable => 403,
             self::RateLimited => 429,
-            self::GitHubUnreachable => 503,
         };
     }
 }

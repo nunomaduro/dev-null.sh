@@ -43,13 +43,7 @@ final readonly class SshSignatures
      */
     public function authenticate(SshPublicKey $publicKey, string $timestamp, string $nonce): ?User
     {
-        throw_unless(
-            ctype_digit($timestamp) && abs(now()->getTimestamp() - (int) $timestamp) <= self::MaxClockSkewSeconds,
-            InvalidArgumentException::class,
-            'Signature expired. Check that your clock is right.',
-        );
-
-        throw_unless(preg_match('/^[0-9a-f]{32}$/', $nonce) === 1, InvalidArgumentException::class, 'Malformed payload.');
+        $this->ensureRecent($timestamp, $nonce);
 
         $user = $this->findKeyOwner($publicKey);
 
@@ -57,14 +51,20 @@ final readonly class SshSignatures
             return null;
         }
 
-        throw_unless(
-            // Remembered a bit longer than a signature can be valid (from -skew to +skew around its timestamp)...
-            Cache::add("ssh-signature-nonce:{$nonce}", true, self::MaxClockSkewSeconds * 2 + 60),
-            InvalidArgumentException::class,
-            'This signature was already used.',
-        );
+        $this->spendNonce($nonce);
 
         return $user;
+    }
+
+    /**
+     * Checks the timestamp and nonce signed along with a message and spends the nonce, whoever the key belongs to: a
+     * signature expires a few minutes after its timestamp, and is only good once.
+     */
+    public function checkFreshness(string $timestamp, string $nonce): void
+    {
+        $this->ensureRecent($timestamp, $nonce);
+
+        $this->spendNonce($nonce);
     }
 
     /**
@@ -82,5 +82,26 @@ final readonly class SshSignatures
         $this->updateUserSshKeys->handle($user, unlessRecentlySynced: true);
 
         return $user->sshKeys()->where('fingerprint', $publicKey->fingerprint())->exists() ? $user : null;
+    }
+
+    private function ensureRecent(string $timestamp, string $nonce): void
+    {
+        throw_unless(
+            ctype_digit($timestamp) && abs(now()->getTimestamp() - (int) $timestamp) <= self::MaxClockSkewSeconds,
+            InvalidArgumentException::class,
+            'Signature expired. Check that your clock is right.',
+        );
+
+        throw_unless(preg_match('/^[0-9a-f]{32}$/', $nonce) === 1, InvalidArgumentException::class, 'Malformed payload.');
+    }
+
+    private function spendNonce(string $nonce): void
+    {
+        throw_unless(
+            // Remembered a bit longer than a signature can be valid (from -skew to +skew around its timestamp)...
+            Cache::add("ssh-signature-nonce:{$nonce}", true, self::MaxClockSkewSeconds * 2 + 60),
+            InvalidArgumentException::class,
+            'This signature was already used.',
+        );
     }
 }

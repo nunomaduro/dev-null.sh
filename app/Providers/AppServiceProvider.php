@@ -94,6 +94,13 @@ final class AppServiceProvider extends ServiceProvider
                 : Limit::perMinute(60)->by((string) $request->ip());
         });
 
+        // Redeeming a code for a device is limited per key once the signature checks out. Before that, each address gets
+        // a ceiling, so unsigned or badly signed requests can't force signature checks...
+        RateLimiter::for('devices', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
+
+        // Approving the devnull app on the web hands out a code each time...
+        RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
+
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 

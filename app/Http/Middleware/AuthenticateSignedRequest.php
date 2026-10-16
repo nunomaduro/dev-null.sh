@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
+use App\Models\Device;
 use App\Models\User;
 use App\Services\SignedRequests;
 use Closure;
@@ -15,7 +16,7 @@ use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Authenticates a request to the API signed by the mobile app with an SSH key that is on the user's GitHub account.
+ * Authenticates a request to the API signed by the mobile app with an SSH key that the user approved as a device.
  *
  * The public read endpoints use it through optional(): a request without any signature header is read as a guest,
  * but one that is signed must be signed right, so a broken client never quietly gets the public view instead.
@@ -42,18 +43,16 @@ final readonly class AuthenticateSignedRequest
         }
 
         try {
-            ['publicKey' => $publicKey, 'user' => $user] = $this->signedRequests->verify($request);
+            ['device' => $device] = $this->signedRequests->verify($request);
         } catch (InvalidArgumentException $invalidArgumentException) {
             throw new ApiException(ApiErrorCode::InvalidSignature, $invalidArgumentException->getMessage());
         }
 
-        if (! $user instanceof User) {
-            throw new ApiException(ApiErrorCode::KeyNotOnGitHub, __('This SSH key (:fingerprint) is not on the GitHub account of a devnull user.', [
-                'fingerprint' => $publicKey->fingerprint(),
-            ]));
+        if (! $device instanceof Device) {
+            throw new ApiException(ApiErrorCode::DeviceNotApproved, __("This key isn't approved for the /dev/null app. Sign in again in the app."));
         }
 
-        Auth::setUser($user);
+        Auth::setUser($device->user);
 
         return $next($request);
     }

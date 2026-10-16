@@ -27,6 +27,7 @@ use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -261,6 +262,12 @@ Route::middleware('auth')->group(function (): void {
     // Devices...
     Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
     Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
+
+    // Mobile Authorization...
+    Route::get('mobile/authorize', [MobileAuthorizationController::class, 'show'])->name('mobile-authorization.show');
+    Route::post('mobile/authorize', [MobileAuthorizationController::class, 'store'])
+        ->middleware('throttle:mobile-authorizations')
+        ->name('mobile-authorization.store');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');

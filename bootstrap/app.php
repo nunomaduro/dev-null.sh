@@ -79,9 +79,4 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(fn (ThrottleRequestsException $exception, Request $request): ?JsonResponse => $request->is('api/v1/*') && $request->user() instanceof User
             ? new ApiException(ApiErrorCode::RateLimited, $exception->getMessage(), $exception->getHeaders())->render()
             : null);
-
-        // Signed requests from the mobile app also check keys against GitHub...
-        $exceptions->render(fn (ConnectionException|RequestException $exception, Request $request): ?JsonResponse => $request->is('api/v1/*')
-            ? new ApiException(ApiErrorCode::GitHubUnreachable, 'Could not reach GitHub to check your SSH key. Try again in a moment.')->render()
-            : null);
     })->create();

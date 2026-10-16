@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\SshKey;
 use App\Models\User;
 use App\Services\SignedRequests;
 use Illuminate\Http\Request;
@@ -27,10 +28,12 @@ it('tells a request with any of the signature headers from one without', functio
 it('verifies a signed request', function (string $method, string $uri, string $body): void {
     $request = Request::create($uri, $method, server: signApiRequest($this->keyPair, $method, $uri, $body), content: $body);
 
-    ['publicKey' => $publicKey, 'user' => $user] = resolve(SignedRequests::class)->verify($request);
+    ['publicKey' => $publicKey, 'device' => $device] = resolve(SignedRequests::class)->verify($request);
 
     expect($publicKey->fingerprint())->toBe($this->keyPair->publicKey->fingerprint())
-        ->and($user?->is($this->user))->toBeTrue();
+        ->and($device?->is($this->user->devices()->sole()))->toBeTrue()
+        ->and($device?->user->is($this->user))->toBeTrue()
+        ->and($device?->last_used_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 })->with([
     'without a body' => ['GET', 'https://devnull.test/api/v1/log/latest', ''],
     'with a query' => ['GET', 'https://devnull.test/api/v1/log/latest?cursor=abc&x=%20y', ''],
@@ -38,16 +41,35 @@ it('verifies a signed request', function (string $method, string $uri, string $b
     'with a multi-line body' => ['POST', 'https://devnull.test/api/v1/commits', "{\"body\":\"It was DNS.\"}\n\n"],
 ]);
 
-it('returns no user for keys that are not on the github account of a user', function (): void {
+it('returns no device for a key nobody approved, on github or not', function (bool $isOnGitHub): void {
     $keyPair = SshKeyPair::generate();
     $uri = 'https://devnull.test/api/v1/me';
 
+    if ($isOnGitHub) {
+        SshKey::factory()->withPublicKey($keyPair->publicKey)->create();
+    }
+
     $request = Request::create($uri, server: signApiRequest($keyPair, 'GET', $uri));
 
-    ['publicKey' => $publicKey, 'user' => $user] = resolve(SignedRequests::class)->verify($request);
+    ['publicKey' => $publicKey, 'device' => $device] = resolve(SignedRequests::class)->verify($request);
 
     expect($publicKey->fingerprint())->toBe($keyPair->publicKey->fingerprint())
-        ->and($user)->toBeNull();
+        ->and($device)->toBeNull();
+})->with([
+    "on nobody's github account" => false,
+    "on a user's github account" => true,
+]);
+
+it('verifies the signature of a key nobody approved yet, and spends its nonce', function (): void {
+    $keyPair = SshKeyPair::generate();
+    $uri = 'https://devnull.test/api/v1/devices';
+    $server = signApiRequest($keyPair, 'POST', $uri, '{"code":"abc"}');
+
+    $publicKey = resolve(SignedRequests::class)->verifySignature(Request::create($uri, 'POST', server: $server, content: '{"code":"abc"}'));
+
+    expect($publicKey->fingerprint())->toBe($keyPair->publicKey->fingerprint())
+        ->and(fn (): mixed => resolve(SignedRequests::class)->verifySignature(Request::create($uri, 'POST', server: $server, content: '{"code":"abc"}')))
+        ->toThrow(InvalidArgumentException::class, 'This signature was already used.');
 });
 
 it('rejects a request that differs from the one that was signed', function (string $method, string $uri, string $body, array $headers): void {

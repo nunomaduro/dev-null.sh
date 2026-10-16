@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CurrentUserController;
+use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserCommitController;
@@ -37,7 +38,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit.show');
     });
 
-    // Signed by the mobile app with an SSH key that is on the user's GitHub account...
+    // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
+    Route::post('devices', [DeviceController::class, 'store'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('throttle:devices')
+        ->name('api-device.store');
+
+    // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
 

@@ -125,3 +125,23 @@ it('checks github at most every 5 minutes', function (): void {
 
     Http::assertSentCount(3);
 });
+
+it('checks the freshness of a signature whoever signed it, and spends its nonce', function (): void {
+    $nonce = bin2hex(random_bytes(16));
+    $sshSignatures = resolve(SshSignatures::class);
+
+    $sshSignatures->checkFreshness((string) now()->getTimestamp(), $nonce);
+
+    expect(fn () => $sshSignatures->checkFreshness((string) now()->getTimestamp(), $nonce))
+        ->toThrow(InvalidArgumentException::class, 'This signature was already used.');
+
+    Http::assertNothingSent();
+});
+
+it('rejects a stale timestamp or a malformed nonce when checking freshness', function (string $timestamp, string $nonce, string $message): void {
+    expect(fn () => resolve(SshSignatures::class)->checkFreshness($timestamp, $nonce))
+        ->toThrow(InvalidArgumentException::class, $message);
+})->with([
+    'an old timestamp' => [fn (): string => (string) (now()->getTimestamp() - 301), str_repeat('a', 32), 'Signature expired. Check that your clock is right.'],
+    'a malformed nonce' => [fn (): string => (string) now()->getTimestamp(), 'nonce', 'Malformed payload.'],
+]);

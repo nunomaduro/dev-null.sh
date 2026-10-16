@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -16,7 +17,7 @@ beforeEach(function (): void {
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
-it('authenticates a request signed with a key on the github account of the user', function (): void {
+it('authenticates a request signed with a key the user approved as a device', function (): void {
     $response = signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'));
 
     $response->assertOk()
@@ -33,9 +34,7 @@ it('accepts requests signed by ssh-keygen over the documented message', function
     $publicKey = SshPublicKey::fromOpenSsh('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIrhcHdLGpoKRYqI6eBWDeFu3VITYyTHDGiQ7QhYXCPa vector');
     $user = User::factory()->create();
 
-    SshKey::factory()->for($user)->withPublicKey($publicKey)->create();
-
-    fakeGitHubSshKeys($user, [$publicKey]);
+    Device::factory()->for($user)->withPublicKey($publicKey)->create();
 
     [$timestamp, $nonce, $method, $target, $body] = explode("\n", $message, 5);
 
@@ -116,49 +115,97 @@ it('rejects a reused nonce', function (): void {
         ->assertJsonPath('code', 'invalid_signature');
 });
 
-it('rejects keys that are not on the github account of a user', function (): void {
+it('rejects a key nobody approved as a device, without asking github', function (): void {
     $keyPair = SshKeyPair::generate();
+    $user = User::factory()->create();
+
+    // Even on the user's GitHub account, a key needs approving on the web...
+    SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
 
     $response->assertUnauthorized()
-        ->assertJsonPath('message', "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a devnull user.")
-        ->assertJsonPath('code', 'key_not_on_github');
+        ->assertExactJson([
+            'message' => "This key isn't approved for the /dev/null app. Sign in again in the app.",
+            'code' => 'device_not_approved',
+        ]);
+
+    $this->assertGuest();
+    Http::assertNothingSent();
+});
+
+it('rejects a key that is not approved as a device on the public endpoints too', function (Closure $uri): void {
+    $keyPair = SshKeyPair::generate();
+    $commit = Commit::factory()->create();
+
+    $response = signedApiRequest($keyPair, 'GET', $uri($commit));
+
+    $response->assertUnauthorized()
+        ->assertJsonPath('code', 'device_not_approved')
+        ->assertJsonMissingPath('data');
+
+    $this->assertGuest();
+})->with([
+    'a profile' => fn (Commit $commit): string => route('api-user.show', $commit->user),
+    'a list of commits' => fn (Commit $commit): string => route('api-user-commit.index', $commit->user),
+    'a commit' => fn (Commit $commit): string => route('api-commit.show', $commit),
+]);
+
+it("signs in with an approved device whose key is on nobody's github account, without asking github", function (): void {
+    expect(SshKey::query()->exists())->toBeFalse();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.id', $this->user->id);
 
     Http::assertNothingSent();
 });
 
-it('rejects keys removed from github since the last sync', function (): void {
-    $keyPair = SshKeyPair::generate();
-    $user = User::factory()->create();
-    $sshKey = SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
+it('signs in as the user who approved the device, whoever has the key on github', function (): void {
+    $other = User::factory()->create();
 
-    fakeGitHubSshKeys($user);
+    SshKey::factory()->for($other)->withPublicKey($this->keyPair->publicKey)->create();
 
-    $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.id', $this->user->id);
 
-    $response->assertUnauthorized()
-        ->assertJsonPath('message', "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a devnull user.")
-        ->assertJsonPath('code', 'key_not_on_github');
-
-    expect($sshKey->fresh())->toBeNull();
+    $this->assertAuthenticatedAs($this->user);
 });
 
-it('fails when github cannot be reached', function (): void {
-    $keyPair = SshKeyPair::generate();
-    $user = User::factory()->create();
+it('rejects a revoked device', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))->assertOk();
 
-    SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
+    $this->user->devices()->sole()->delete();
+    Auth::forgetGuards();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'));
 
-    $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
+    $response->assertUnauthorized()
+        ->assertJsonPath('code', 'device_not_approved');
+});
 
-    $response->assertServiceUnavailable()
-        ->assertJsonPath('message', 'Could not reach GitHub to check your SSH key. Try again in a moment.')
-        ->assertJsonPath('code', 'github_unreachable');
+it('records when a device was last used, at most once a minute', function (): void {
+    $device = $this->user->devices()->sole();
+
+    expect($device->last_used_at)->toBeNull();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect($device->refresh()->last_used_at?->toDateTimeString())->toBe(now()->toDateTimeString());
+
+    $usedAt = now();
+    $this->travel(59)->seconds();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect($device->refresh()->last_used_at?->toDateTimeString())->toBe($usedAt->toDateTimeString());
+
+    $this->travel(1)->seconds();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect($device->refresh()->last_used_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('never answers a badly signed request to a public endpoint with the public view', function (Closure $uri, Closure $server, string $message): void {

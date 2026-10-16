@@ -35,6 +35,14 @@ final class ApiException extends HttpException
             : new self(ApiErrorCode::UserUnavailable, __("This profile isn't available."));
     }
 
+    /**
+     * The one answer to a code the app can't redeem, whatever is wrong with it, as OAuth answers it.
+     */
+    public static function invalidGrant(): self
+    {
+        return new self(ApiErrorCode::InvalidGrant, __('This sign-in has expired or was already used. Sign in again in the app.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([
