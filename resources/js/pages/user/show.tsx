@@ -6,9 +6,11 @@ import {
     Heart,
     Link2,
     MapPin,
+    Mail,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -109,6 +111,19 @@ export default function Show({
                                     isMuting={isMuting}
                                     isBlocking={false}
                                 />
+                            )}
+                            {auth.user && (
+                                <Button variant="outline" size="icon" asChild>
+                                    <Link
+                                        href={ConversationController.create({
+                                            query: { username: user.username },
+                                        })}
+                                        aria-label={`Message @${user.username}`}
+                                        prefetch={false}
+                                    >
+                                        <Mail />
+                                    </Link>
+                                </Button>
                             )}
                             <FollowButton
                                 user={user}

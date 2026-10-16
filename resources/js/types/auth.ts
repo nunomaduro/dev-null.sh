@@ -29,6 +29,7 @@ export type Auth = {
     isAdmin: boolean;
     log: Log | null;
     unreadNotificationsCount: number;
+    unreadMessagesCount?: number;
 };
 
 export type SuggestedUser = User & {

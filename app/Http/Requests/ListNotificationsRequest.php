@@ -18,7 +18,7 @@ final class ListNotificationsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => ['nullable', 'in:all,replies,quotes,stars,mentions,follows,moderation'],
+            'type' => ['nullable', 'in:all,replies,quotes,stars,mentions,follows,moderation,messages'],
             'through' => ['nullable', 'date'],
         ];
     }

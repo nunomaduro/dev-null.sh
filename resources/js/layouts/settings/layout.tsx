@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react';
+import MessagingSettingsController from '@/actions/App/Http/Controllers/MessagingSettingsController';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { edit as editAppearance } from '@/routes/appearance';
@@ -32,6 +33,13 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                             title: 'Terminal',
                             href: showTerminal(),
                             isActive: isCurrentUrl(showTerminal()),
+                        },
+                        {
+                            title: 'Messages',
+                            href: MessagingSettingsController.edit(),
+                            isActive: isCurrentUrl(
+                                MessagingSettingsController.edit(),
+                            ),
                         },
                         {
                             title: 'Safety',

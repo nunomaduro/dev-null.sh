@@ -18,6 +18,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * @property-read string $dm_policy
+ * @property-read bool $dm_read_receipts
  * @property-read string $id
  * @property-read string $github_id
  * @property-read string $username
@@ -54,6 +56,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $followers_count
  */
 #[Hidden([
+    'dm_policy',
+    'dm_read_receipts',
     'github_id',
     'email',
     'remember_token',
@@ -76,6 +80,8 @@ final class User extends Authenticatable
      */
     protected $attributes = [
         'log' => Log::Following->value,
+        'dm_policy' => 'off',
+        'dm_read_receipts' => false,
     ];
 
     /**
@@ -84,6 +90,8 @@ final class User extends Authenticatable
     public function casts(): array
     {
         return [
+            'dm_policy' => 'string',
+            'dm_read_receipts' => 'boolean',
             'id' => 'string',
             'github_id' => 'string',
             'username' => 'string',

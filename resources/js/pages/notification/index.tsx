@@ -6,6 +6,7 @@ import {
     Check,
     ChevronDown,
     MessageSquareReply,
+    Mail,
     Quote,
     Star,
     UserPlus,
@@ -21,6 +22,7 @@ import {
     useState,
 } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
@@ -50,7 +52,8 @@ type Filters = {
         | 'stars'
         | 'mentions'
         | 'follows'
-        | 'moderation';
+        | 'moderation'
+        | 'messages';
 };
 
 const filterOptions: {
@@ -62,6 +65,11 @@ const filterOptions: {
         type: 'all',
         label: 'All',
         empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
+    },
+    {
+        type: 'messages',
+        label: 'Messages',
+        empty: 'New messages and message requests will appear here.',
     },
     {
         type: 'replies',
@@ -148,7 +156,11 @@ export default function Index({
     const { start, stop } = usePoll(
         30_000,
         () => ({
-            only: ['notifications', 'auth.unreadNotificationsCount'],
+            only: [
+                'notifications',
+                'auth.unreadNotificationsCount',
+                'auth.unreadMessagesCount',
+            ],
             reset: ['notifications'],
             data: {
                 cursor: '',
@@ -710,6 +722,8 @@ function NotificationContent({
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
     const Icon = {
+        messaged: Mail,
+        message_requested: Mail,
         followed: UserPlus,
         replied: MessageSquareReply,
         quoted: Quote,
@@ -729,12 +743,15 @@ function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed'
-            ? show(actor)
-            : CommitController.show({
-                  user: isOwnCommit ? user : actor,
-                  commit: notification.commit,
-              });
+        notification.type === 'messaged' ||
+        notification.type === 'message_requested'
+            ? ConversationController.show(notification.conversation_id)
+            : notification.commit === null
+              ? show(actor)
+              : CommitController.show({
+                    user: isOwnCommit ? user : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -745,6 +762,8 @@ function NotificationContent({
         </time>
     );
     const action = {
+        messaged: 'sent you a message',
+        message_requested: 'wants to message you',
         followed: 'followed you',
         replied: 'replied to your commit',
         quoted: 'quoted your commit',
@@ -754,7 +773,7 @@ function NotificationContent({
         rejected: 'Your commit was rejected',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
+        notification.commit === null ? null : isOwnCommit ? (
             <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
                 <CommitBodyExcerpt
                     segments={notification.commit.body_segments}

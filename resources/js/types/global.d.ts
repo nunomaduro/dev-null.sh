@@ -5,6 +5,7 @@ import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 declare module '@inertiajs/core' {
     export interface InertiaConfig {
         flashDataType: {
+            directMessageSent?: string;
             toast?: FlashToast;
             committed?: CommittedFlash;
             deleted?: DeletedFlash;

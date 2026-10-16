@@ -65,9 +65,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 2,
+        'schema_version' => 3,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
+            'dm_policy' => 'off',
+            'dm_read_receipts' => false,
             'github_id' => $user->github_id,
             'username' => $user->username,
             'name' => 'Zoë Example',
@@ -93,6 +95,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'muting' => [],
         'blocking' => [],
         'notifications' => [],
+        'direct_messages' => [],
         'ssh_keys' => [],
         'sessions' => [],
     ]);
@@ -296,6 +299,7 @@ it('exports received notifications without revealing moderators', function (): v
             'type' => 'followed',
             'actor' => 'friendly-dev',
             'commit_id' => null,
+            'conversation_id' => null,
             'reason' => null,
             'read_at' => now()->toIso8601String(),
             'created_at' => now()->toIso8601String(),
@@ -304,6 +308,7 @@ it('exports received notifications without revealing moderators', function (): v
             'type' => 'rejected',
             'actor' => null,
             'commit_id' => $commit->id,
+            'conversation_id' => null,
             'reason' => 'Looks like spam.',
             'read_at' => null,
             'created_at' => now()->toIso8601String(),

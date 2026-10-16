@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @property-read string|null $conversation_id
  * @property-read string $id
  * @property-read string $recipient_id
  * @property-read string $actor_id
@@ -87,6 +88,12 @@ final class Notification extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Conversation, $this> */
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class);
     }
 
     /**

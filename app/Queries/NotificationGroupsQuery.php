@@ -61,6 +61,7 @@ final readonly class NotificationGroupsQuery
         $filtered = Notification::query()->from('visible')->select('visible.*', 'identified.group_id')
             ->join('identified', 'identified.id', '=', 'visible.id')
             ->when($type !== 'all', fn (NotificationBuilder $query): NotificationBuilder => $query->whereIn('type', match ($type) {
+                'messages' => ['messaged', 'message_requested'],
                 'replies' => ['replied'],
                 'quotes' => ['quoted'],
                 'stars' => ['starred'],

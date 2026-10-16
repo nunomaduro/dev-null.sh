@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
+    Mail,
     Bookmark,
     GitCommitVertical,
     Search,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -62,6 +64,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             prefetch: false,
         },
         {
+            title: 'Chat',
+            href: hrefFor(() => ConversationController.index()),
+            icon: Mail,
+            badge: auth.unreadMessagesCount ?? 0,
+            prefetch: false,
+        },
+        {
             title: 'Profile',
             href: hrefFor((user) => show(user)),
             icon: UserRound,
@@ -101,9 +110,11 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             user !== null &&
             (item.title === 'Settings'
                 ? isCurrentOrParentUrl('/settings')
-                : item.title === 'Log'
-                  ? isCurrentOrParentUrl('/log')
-                  : isCurrentUrl(item.href)),
+                : item.title === 'Chat'
+                  ? isCurrentOrParentUrl('/messages')
+                  : item.title === 'Log'
+                    ? isCurrentOrParentUrl('/log')
+                    : isCurrentUrl(item.href)),
     }));
 }
 
@@ -166,7 +177,8 @@ function NavIcon({
         return null;
     }
 
-    const count = item.isActive ? 0 : (item.badge ?? 0);
+    const count =
+        item.isActive && item.title !== 'Chat' ? 0 : (item.badge ?? 0);
 
     return (
         <span className="relative">

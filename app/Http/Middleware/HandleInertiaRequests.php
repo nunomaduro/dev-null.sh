@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\DirectMessagingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ final class HandleInertiaRequests extends Middleware
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
                 'log' => fn (): ?Log => $request->user()?->log,
+                'unreadMessagesCount' => fn (): int => $user instanceof User ? resolve(DirectMessagingQuery::class)->unreadCount($user) : 0,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),

@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
 use App\Models\User;
+use App\Queries\DirectMessagingQuery;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
@@ -25,6 +26,19 @@ final class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->bootRateLimitingDefaults();
+
+        RateLimiter::for('direct-messages', function (Request $request): array {
+            $user = $request->user();
+            $recipient = $request->route('user');
+            assert($user instanceof User);
+            $recipient = $recipient instanceof User ? $recipient : User::query()->where('username', $recipient)->first();
+            $limits = [Limit::perMinute(30)->by('dm:'.$user->id)];
+            if ($recipient instanceof User && resolve(DirectMessagingQuery::class)->between($user, $recipient) === null && ! $recipient->isFollowing($user)) {
+                $limits[] = Limit::perDay(10)->by('dm-requests:'.$user->id);
+            }
+
+            return $limits;
+        });
 
         $this->bootExceptionHandling();
     }

@@ -21,12 +21,18 @@ use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\ConversationPreferencesController;
+use App\Http\Controllers\ConversationReadController;
+use App\Http\Controllers\ConversationRequestController;
+use App\Http\Controllers\DirectMessageController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -51,7 +57,9 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Middleware\PrivateMessaging;
 use App\Http\Middleware\RememberIntendedUrl;
+use App\Http\Middleware\SerializeDirectMessaging;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -194,6 +202,21 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
 
+    // Private, opt-in direct messaging...
+    Route::middleware(PrivateMessaging::class)->group(function (): void {
+        Route::get('messages', [ConversationController::class, 'index'])->name('conversation.index');
+        Route::get('messages/new', [ConversationController::class, 'create'])->name('conversation.create');
+        Route::get('messages/{conversation}', [ConversationController::class, 'show'])->whereUuid('conversation')->name('conversation.show');
+        Route::get('settings/messages', [MessagingSettingsController::class, 'edit'])->name('messaging-settings.edit');
+        Route::middleware(SerializeDirectMessaging::class)->group(function (): void {
+            Route::post('@{user:username}/messages', [DirectMessageController::class, 'store'])->middleware('throttle:direct-messages')->name('direct-message.store');
+            Route::put('messages/{conversation}/read', [ConversationReadController::class, 'update'])->whereUuid('conversation')->name('conversation-read.update');
+            Route::put('messages/{conversation}/preferences', [ConversationPreferencesController::class, 'update'])->whereUuid('conversation')->name('conversation-preferences.update');
+            Route::put('messages/{conversation}/request', [ConversationRequestController::class, 'update'])->whereUuid('conversation')->name('conversation-request.update');
+            Route::put('settings/messages', [MessagingSettingsController::class, 'update'])->name('messaging-settings.update');
+        });
+    });
+
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
     Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
@@ -249,10 +272,10 @@ Route::middleware('auth')->group(function (): void {
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
-        ->middleware('throttle:follows')
+        ->middleware(['throttle:follows', SerializeDirectMessaging::class])
         ->name('user-follow.store');
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
-        ->middleware('throttle:follows')
+        ->middleware(['throttle:follows', SerializeDirectMessaging::class])
         ->name('user-follow.destroy');
 
     // User Mute...
@@ -263,9 +286,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Block...
     Route::post('@{user:username}/block', [UserBlockController::class, 'store'])
-        ->name('user-block.store');
+        ->middleware(SerializeDirectMessaging::class)->name('user-block.store');
     Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
-        ->name('user-block.destroy');
+        ->middleware(SerializeDirectMessaging::class)->name('user-block.destroy');
 });
 
 Route::fallback(fn () => abort(404));

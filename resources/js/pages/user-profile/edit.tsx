@@ -132,11 +132,12 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Export your data"
-                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, notifications, SSH key fingerprints, and active sessions."
+                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, notifications, messages you sent, messaging preferences, SSH key fingerprints, and active sessions."
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
-                    Other people's replies are excluded. Your export is a JSON
-                    file. Your profile is still managed on GitHub.
+                    Other people's replies and messages are excluded. Your
+                    export is a JSON file. Your profile is still managed on
+                    GitHub.
                 </p>
                 <Button variant="outline" asChild>
                     <a href={ExportController.url()}>

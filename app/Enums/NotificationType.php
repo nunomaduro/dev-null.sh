@@ -6,6 +6,8 @@ namespace App\Enums;
 
 enum NotificationType: string
 {
+    case Messaged = 'messaged';
+    case MessageRequested = 'message_requested';
     case Followed = 'followed';
     case Replied = 'replied';
     case Mentioned = 'mentioned';

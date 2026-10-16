@@ -58,7 +58,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 function NotificationCountPolling() {
     usePoll(
         30_000,
-        { only: ['auth.unreadNotificationsCount'] },
+        { only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'] },
         { mode: 'rest', background: 'pause' },
     );
 

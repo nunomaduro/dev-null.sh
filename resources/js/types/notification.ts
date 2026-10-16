@@ -22,6 +22,13 @@ export type NotificationGroup = Notification & {
 
 export type Notification =
     | (BaseNotification & {
+          type: 'messaged' | 'message_requested';
+          conversation_id: string;
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+      })
+    | (BaseNotification & {
           type: 'followed';
           commit_id: null;
           subject_id: null;

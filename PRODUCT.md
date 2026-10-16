@@ -51,8 +51,12 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
 - Rate limits, per user: stars and saves 60/min each, pins 20/min, follows 30/min, people lookups (search, mention suggestions, hover cards) 120/min combined, exports 3/hour. Throttled actions keep the page and show a toast; throttled pages show the 429 page.
 - Public read API and Atom feeds: read-only, so nothing can be created, starred, or followed through them, and there are no API tokens. Lists are cursor-paginated, 20 per page.
-- Deliberately excluded for now: likes/reactions, reposts without a comment of your own (quotes are in), images/media, hashtags, searching commits, DMs, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
+- Deliberately excluded for now: likes/reactions, reposts without a comment of your own (quotes are in), images/media, hashtags, searching commits, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
 - GitHub username renames: signing in takes the current GitHub username. If a stale account still holds it because its owner renamed on GitHub, that account moves to a `_renamed-<github id>` placeholder until its owner signs in again. Accounts are never merged.
+
+## Direct messages
+
+Opt-in one-to-one messaging is available from Messages and profile buttons. Settings offer Off (default), People I follow, and Everyone. Unfamiliar senders use a request inbox with one introductory message until accepted. Existing blocks, account mutes, conversation mute/archive, optional mutual read receipts, and in-app notifications apply. Text is limited to 4,000 characters. Messages are encrypted in storage, not end-to-end encrypted. See [Direct messaging](docs/DIRECT_MESSAGING.md) for exact rules, deletion/export behavior, test coverage, and proposed follow-ups.
 
 ## Brand Commitments
 

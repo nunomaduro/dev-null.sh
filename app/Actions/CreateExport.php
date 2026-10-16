@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\CommitImage;
+use App\Models\DirectMessage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
@@ -22,14 +23,16 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, direct_messages: Generator<int, array<string, mixed>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 2,
+            'schema_version' => 3,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
+                'dm_policy' => $user->dm_policy,
+                'dm_read_receipts' => $user->dm_read_receipts,
                 'github_id' => $user->github_id,
                 'username' => $user->username,
                 'name' => $user->name,
@@ -55,6 +58,7 @@ final readonly class CreateExport
             'muting' => $this->usernames($user->muting()),
             'blocking' => $this->usernames($user->blocking()),
             'notifications' => $this->notifications($user),
+            'direct_messages' => $this->directMessages($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'sessions' => $this->sessions($user),
         ];
@@ -165,10 +169,19 @@ final readonly class CreateExport
                 'type' => $notification->type->value,
                 'actor' => $isModeration ? null : $notification->actor->username,
                 'commit_id' => $notification->commit_id,
+                'conversation_id' => $notification->conversation_id,
                 'reason' => $notification->reason,
                 'read_at' => $notification->read_at?->toIso8601String(),
                 'created_at' => $notification->created_at->toIso8601String(),
             ];
+        }
+    }
+
+    /** @return Generator<int, array<string, mixed>> */
+    private function directMessages(User $user): Generator
+    {
+        foreach (DirectMessage::query()->where('sender_id', $user->id)->lazyById(500) as $message) {
+            yield ['id' => $message->id, 'conversation_id' => $message->conversation_id, 'body' => $message->body, 'created_at' => $message->created_at->toIso8601String()];
         }
     }
 

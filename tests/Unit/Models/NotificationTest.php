@@ -20,6 +20,7 @@ test('to array', function (): void {
             'updated_at',
             'reason',
             'subject_id',
+            'conversation_id',
         ]);
 });
 
