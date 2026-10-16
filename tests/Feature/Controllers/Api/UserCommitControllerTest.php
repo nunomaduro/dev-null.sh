@@ -249,3 +249,23 @@ it('lists no commits of a profile across a block for a signed request', function
     'blocking' => [fn (User $viewer, User $user) => $viewer->blocking()->attach($user), 'user_blocked'],
     'blocked' => [fn (User $viewer, User $user) => $user->blocking()->attach($viewer), 'user_unavailable'],
 ]);
+
+it('shows a signed request the newest reply or quote under each commit, as the web does', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($commit, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $quote = Commit::factory()->for($commit, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(4)]);
+
+    signedApiRequest($keyPair, 'GET', route('api-user-commit.index', $user))
+        ->assertOk()
+        ->assertJsonPath('data.0.reply_preview.data.*.id', [$quote->id])
+        ->assertJsonPath('data.0.reply_preview.data.0.quoted_commit_id', $commit->id)
+        ->assertJsonMissingPath('data.0.reply_preview.data.0.quoted_commit')
+        ->assertJsonPath('data.1.reply_preview', ['data' => [], 'next_cursor' => null]);
+
+    $this->getJson(route('api-user-commit.index', $user))
+        ->assertOk()
+        ->assertJsonMissingPath('data.0.reply_preview');
+});

@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\CommitBodies;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +26,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
     ]);
     $older = Commit::factory()->for($author)->create(['body' => 'It was DNS.', 'created_at' => now()->subMinute()]);
     $newer = Commit::factory()->for($this->user)->pending()->create(['body' => 'Mine, pending']);
-    Commit::factory()->for($older, 'parent')->count(2)->create();
+    Commit::factory()->for($older, 'parent')->create(['created_at' => now()->subSeconds(30)]);
+    $reply = Commit::factory()->for($older, 'parent')->create(['created_at' => now()->subSeconds(20)]);
     Commit::factory()->for($older, 'parent')->pending()->create();
     Commit::factory()->pending()->create();
 
@@ -36,43 +38,69 @@ it('lists the latest commits of everyone, newest first', function (): void {
         ->assertJsonPath('data.0.id', $newer->id)
         ->assertJsonPath('data.0.status', 'pending')
         ->assertJsonPath('data.0.replies_count', 0)
-        ->assertJsonPath('data.1', [
-            'id' => $older->id,
-            'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
-            'body' => 'It was DNS.',
-            'parent_id' => null,
-            'html_url' => route('commit.show', [$author, $older]),
-            'created_at' => now()->subMinute()->toIso8601ZuluString(),
-            'stars_count' => 0,
-            'replies_count' => 2,
-            'link_preview' => null,
-            'images' => [],
-            'author' => [
-                'id' => $author->id,
-                'username' => 'octocat',
-                'name' => 'The Octocat',
-                'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
-                'bio' => $author->bio,
-                'company' => $author->company,
-                'location' => $author->location,
-                'website' => $author->website,
-                'github_url' => 'https://github.com/octocat',
-                'html_url' => route('user.show', $author),
-                'feed_url' => route('user-feed.show', $author),
-                'created_at' => now()->toIso8601ZuluString(),
-                'lane' => $author->lane(),
-            ],
-            'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
-            'mentions' => [],
-            'status' => 'approved',
-            'is_pinned' => false,
-            'starred' => false,
-            'is_saved' => false,
-            'deleted_at' => null,
-        ])
-        ->assertJsonPath('links.next', null)
+        ->assertJsonPath('data.0.reply_preview', ['data' => [], 'next_cursor' => null])
+        ->assertJsonPath('data.1.reply_preview.data.*.id', [$reply->id])
+        ->assertJsonPath('data.1.reply_preview.data.0.author.id', $reply->user_id)
+        ->assertJsonPath('data.1.reply_preview.data.0.parent_id', $older->id);
+
+    expect($response->json('data.1.reply_preview.next_cursor'))->toBeString();
+
+    expect(collect($response->json('data.1'))->except('reply_preview')->all())->toBe([
+        'id' => $older->id,
+        'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
+        'body' => 'It was DNS.',
+        'parent_id' => null,
+        'html_url' => route('commit.show', [$author, $older]),
+        'created_at' => now()->subMinute()->toIso8601ZuluString(),
+        'stars_count' => 0,
+        'replies_count' => 2,
+        'link_preview' => null,
+        'images' => [],
+        'author' => [
+            'id' => $author->id,
+            'username' => 'octocat',
+            'name' => 'The Octocat',
+            'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
+            'bio' => $author->bio,
+            'company' => $author->company,
+            'location' => $author->location,
+            'website' => $author->website,
+            'github_url' => 'https://github.com/octocat',
+            'html_url' => route('user.show', $author),
+            'feed_url' => route('user-feed.show', $author),
+            'created_at' => now()->toIso8601ZuluString(),
+            'lane' => $author->lane(),
+        ],
+        'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
+        'preview_segments' => null,
+        'mentions' => [],
+        'status' => 'approved',
+        'is_pinned' => false,
+        'starred' => false,
+        'is_saved' => false,
+        'deleted_at' => null,
+        'quoted_commit_id' => null,
+        'quoted_commit' => null,
+        'poll' => null,
+    ]);
+
+    $response->assertJsonPath('links.next', null)
         ->assertJsonPath('meta.next_cursor', null)
         ->assertJsonPath('meta.per_page', 20);
+});
+
+it('sends the excerpt the web shows of a long commit in a list', function (): void {
+    $long = Commit::factory()->create(['body' => str_repeat('It was DNS. ', 100)]);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $long->id)
+        ->assertJsonPath('data.0.body', $long->body)
+        ->assertJsonPath('data.0.body_segments', resolve(CommitBodies::class)->segments($long->body)['body_segments'])
+        ->assertJsonPath('data.0.preview_segments', resolve(CommitBodies::class)->segments($long->body)['preview_segments']);
+
+    expect($response->json('data.0.preview_segments'))->not->toBeNull();
 });
 
 it('shows what the web shows on a commit', function (): void {

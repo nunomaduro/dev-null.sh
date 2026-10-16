@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Commit;
+use App\Models\Poll;
 use App\Models\User;
-use App\Services\CodeSpans;
+use App\Services\CommitBodies;
 use App\Services\Mentions;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,8 +19,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * A signed request gets the commit as the web shows it to that user instead: parent_id is the parent the commit
  * replies to, whoever may see it, and on top come the body split into prose, inline code and highlighted code
  * blocks, where it mentions someone, its status, whether the author pinned it, and whether the user starred or saved
- * it. As on the web, the counts, link_preview, images, starred, is_saved and parent are
- * only there when they were loaded, so ancestors and the commits of notifications come without some of them.
+ * it. Like the web's cards, it also has preview_segments, the excerpt a list shows of a long commit, the poll, with
+ * what the user may see of its votes, and the commit it quotes, or null once the user may no longer see that one,
+ * while quoted_commit_id still says it quoted something. In a list, reply_preview is the newest reply or quote the
+ * web shows under it. As on the web, the counts, link_preview, images, starred, is_saved, parent, poll,
+ * quoted_commit and reply_preview are only there when they were loaded, so ancestors and the commits of
+ * notifications come without some of them.
  *
  * A deleted commit that still has replies stays in its thread as a tombstone: its id, parent_id, deleted_at and
  * replies_count, but never its author or body. Only signed requests are ever sent one.
@@ -63,7 +69,7 @@ final class CommitResource extends JsonResource
 
         return [
             ...$commit,
-            'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
+            ...resolve(CommitBodies::class)->segments($this->body),
             'mentions' => resolve(Mentions::class)->positions($this->body),
             'status' => $this->status,
             'is_pinned' => $this->user?->pinned_commit_id === $this->id,
@@ -71,6 +77,13 @@ final class CommitResource extends JsonResource
             'is_saved' => $this->whenHas('is_saved'),
             'deleted_at' => null,
             'parent' => $this->whenLoaded('parent', fn (Commit $parent): self => self::make($parent)),
+            'quoted_commit_id' => $this->quoted_commit_id,
+            'quoted_commit' => $this->whenLoaded('quotedCommit', fn (Commit $quoted): self => self::make($quoted)),
+            'poll' => $this->whenLoaded('poll', fn (Poll $poll): PollResource => PollResource::make($poll)),
+            'reply_preview' => $this->whenLoaded('replyPreview', fn (Collection $replies): array => [
+                'data' => self::collection($replies),
+                'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),
+            ]),
         ];
     }
 }

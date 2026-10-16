@@ -163,7 +163,7 @@ it('shows a signed request the pinned commit of the profile', function (): void 
     $keyPair = apiKeyPairFor($viewer);
     $user = User::factory()->create();
     $pinned = Commit::factory()->for($user)->create(['body' => 'Pinned']);
-    Commit::factory()->for($pinned, 'parent')->create();
+    $reply = Commit::factory()->for($pinned, 'parent')->create();
     Commit::factory()->for($pinned, 'parent')->pending()->create();
     CommitImage::factory()->for($pinned)->create();
     $user->forceFill(['pinned_commit_id' => $pinned->id])->save();
@@ -176,7 +176,8 @@ it('shows a signed request the pinned commit of the profile', function (): void 
         ->assertJsonPath('pinned_commit.is_pinned', true)
         ->assertJsonPath('pinned_commit.replies_count', 1)
         ->assertJsonCount(1, 'pinned_commit.images')
-        ->assertJsonPath('pinned_commit.author.id', $user->id);
+        ->assertJsonPath('pinned_commit.author.id', $user->id)
+        ->assertJsonPath('pinned_commit.reply_preview.data.*.id', [$reply->id]);
 });
 
 it('hides a pinned commit the signed-in user may not see', function (Closure $pinned): void {

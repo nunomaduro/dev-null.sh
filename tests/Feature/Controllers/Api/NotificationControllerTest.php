@@ -65,6 +65,7 @@ it('lists the notifications of the user, newest first', function (): void {
                 'created_at' => now()->toIso8601ZuluString(),
                 'author' => $user($replied->actor),
                 'body_segments' => [['type' => 'text', 'text' => $reply->body]],
+                'preview_segments' => null,
                 'mentions' => [],
                 'status' => 'approved',
                 'is_pinned' => false,
@@ -78,11 +79,14 @@ it('lists the notifications of the user, newest first', function (): void {
                     'created_at' => now()->toIso8601ZuluString(),
                     'author' => $user($this->user),
                     'body_segments' => [['type' => 'text', 'text' => $reply->parent->body]],
+                    'preview_segments' => null,
                     'mentions' => [],
                     'status' => 'approved',
                     'is_pinned' => false,
                     'deleted_at' => null,
+                    'quoted_commit_id' => null,
                 ],
+                'quoted_commit_id' => null,
             ],
         ])
         ->assertJsonPath('data.1.id', $followed->id)

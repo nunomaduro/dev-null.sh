@@ -8,6 +8,9 @@ use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Poll;
+use App\Models\PollOption;
+use App\Models\PollVote;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
@@ -245,12 +248,16 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'text', 'text' => 'Ask @nunomaduro about '],
                     ['type' => 'code', 'code' => '@Override'],
                 ],
+                'preview_segments' => null,
                 'mentions' => [['username' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
                 'is_saved' => true,
                 'deleted_at' => null,
+                'quoted_commit_id' => null,
+                'quoted_commit' => null,
+                'poll' => null,
             ],
             'ancestors' => [[
                 'id' => $root->id,
@@ -264,15 +271,132 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'images' => [],
                 'author' => $author($root->user),
                 'body_segments' => [['type' => 'text', 'text' => 'Who broke prod?']],
+                'preview_segments' => null,
                 'mentions' => [],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => false,
                 'is_saved' => false,
                 'deleted_at' => null,
+                'quoted_commit_id' => null,
+                'quoted_commit' => null,
+                'poll' => null,
             ]],
         ]);
 });
+
+it('shows a signed request the poll of a commit as the web does, with each share once the votes show', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = Commit::factory()->create(['body' => 'Tabs or spaces?']);
+    $poll = Poll::factory()->for($commit)->withOptions('Tabs', 'Spaces', 'Both')->create(['opened_at' => now()->subHour()]);
+    [$tabs, $spaces, $both] = $poll->options->all();
+    PollVote::factory()->for($tabs, 'option')->count(2)->create();
+
+    $option = fn (PollOption $option, ?int $votes, bool $voted, ?int $percentage): array => [
+        'id' => $option->id,
+        'label' => $option->label,
+        'votes_count' => $votes,
+        'voted' => $voted,
+        'percentage' => $percentage,
+    ];
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll', [
+            'id' => $poll->id,
+            'closes_at' => $poll->closesAt()?->toJSON(),
+            'is_closed' => false,
+            'has_voted' => false,
+            'total_votes' => null,
+            'options' => [
+                $option($tabs, null, false, null),
+                $option($spaces, null, false, null),
+                $option($both, null, false, null),
+            ],
+        ]);
+
+    PollVote::factory()->for($both, 'option')->for($user)->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll.has_voted', true)
+        ->assertJsonPath('data.poll.total_votes', 3)
+        ->assertJsonPath('data.poll.options', [
+            $option($tabs, 2, false, 67),
+            $option($spaces, 0, false, 0),
+            $option($both, 1, true, 33),
+        ]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonMissingPath('data.poll');
+});
+
+it('shows a signed request the shares of a closed poll nobody voted on', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $poll->commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll.is_closed', true)
+        ->assertJsonPath('data.poll.total_votes', 0)
+        ->assertJsonPath('data.poll.options.*.percentage', [0, 0]);
+});
+
+it('embeds the commit a commit quotes for a signed request, with its poll', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $quoted = Commit::factory()->create(['body' => 'Tabs or spaces?']);
+    Poll::factory()->for($quoted)->withOptions('Tabs', 'Spaces')->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create(['body' => 'Neither.']);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.body', 'Tabs or spaces?')
+        ->assertJsonPath('data.quoted_commit.author.id', $quoted->user_id)
+        ->assertJsonPath('data.quoted_commit.poll.options.*.label', ['Tabs', 'Spaces'])
+        ->assertJsonMissingPath('data.quoted_commit.quoted_commit');
+
+    $this->getJson(route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonMissingPath('data.quoted_commit_id')
+        ->assertJsonMissingPath('data.quoted_commit');
+});
+
+it('embeds a deleted quoted commit as a tombstone for a signed request', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->delete();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit', [
+            'id' => $quoted->id,
+            'parent_id' => null,
+            'deleted_at' => now()->toIso8601ZuluString(),
+        ]);
+});
+
+it('leaves out a quoted commit the signed-in user may not see, but still says one was quoted', function (Closure $hide): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $hide($quoted, $viewer);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit', null);
+})->with([
+    'pending' => fn (Commit $quoted) => $quoted->update(['status' => CommitStatus::Pending]),
+    'rejected' => fn (Commit $quoted) => $quoted->update(['status' => CommitStatus::Rejected]),
+    'across a block' => fn (Commit $quoted, User $viewer) => $quoted->user?->blocking()->attach($viewer),
+]);
 
 it('shows a signed-in user their own pending commits, and the parents they may see', function (): void {
     $user = User::factory()->create();
