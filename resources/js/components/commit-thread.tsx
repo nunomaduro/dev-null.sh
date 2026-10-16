@@ -26,6 +26,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -48,6 +49,7 @@ import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { insertAtSelection } from '@/lib/text-selection';
 import {
     characterCount,
     cn,
@@ -956,6 +958,29 @@ function ReplyComposer({
         isSubmittable: isReplyable,
     });
 
+    const insertEmoji = (
+        emoji: string,
+        textarea: HTMLTextAreaElement | null,
+    ) => {
+        const element = textareaRef.current;
+        const inserted = insertAtSelection(
+            body,
+            textarea !== null && textarea === element ? element : null,
+            emoji,
+            maxBodyLength,
+        );
+
+        if (inserted === null) {
+            return;
+        }
+
+        updateBody(inserted.value);
+        requestAnimationFrame(() => {
+            element?.focus();
+            element?.setSelectionRange(inserted.caret, inserted.caret);
+        });
+    };
+
     const returnFocusToCommit = () => {
         const commit =
             textareaRef.current?.closest<HTMLElement>('[data-commit]');
@@ -1103,6 +1128,11 @@ function ReplyComposer({
                         disabled={processing}
                         onPick={attachments.attach}
                         className="size-8"
+                    />
+                    <EmojiPickerButton
+                        disabled={processing}
+                        onPick={insertEmoji}
+                        className="-ml-2 size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker
