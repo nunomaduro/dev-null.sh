@@ -78,7 +78,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key that is on the user's GitHub account, the way `devnull commit` signs commits. A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Each request sends three headers:
 
@@ -100,24 +100,60 @@ POST
 
 A request with any of these headers has to be signed right. A bad or expired signature is a `401`, never the public view. A request without them always gets the public view, and across a block a signed request gets neither profile: it is a `403`, `user_blocked` for the one who blocked and `user_unavailable` for the other, and their commits are hidden as on the web.
 
+A key signs in once its user approved it as a device. It doesn't have to be on their GitHub account, and being on it isn't enough, so a key made for the GitHub Action can't use the API. Users see their devices, when each was last used, and revoke them under Settings → Devices (`/settings/devices`). A key that isn't approved, or was revoked, gets a `401` with `device_not_approved`, and the app signs in again.
+
 ### Errors
 
 An error is JSON with a `message` to show the user. The errors the app has to tell apart also have a `code`, which stays the same when the message changes:
 
 ```json
-{"message": "Signature expired. Check that your clock is right.", "code": "invalid_signature"}
+{"message": "This key isn't approved for the /dev/null app. Sign in again in the app.", "code": "device_not_approved"}
 ```
 
 | Status | `code` | When |
 |---|---|---|
+| `400` | `invalid_grant` | `POST /api/v1/devices` only: the code is wrong, expired or used, was handed out for another key, or the verifier doesn't match. |
 | `401` | `invalid_signature` | The signature is missing, malformed or wrong, has expired, or was used already. |
-| `401` | `key_not_on_github` | The key isn't on the GitHub account of a devnull user. |
+| `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
 | `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
 | `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, or 30 follows and unfollows a minute. `Retry-After` says when to try again. |
-| `503` | `github_unreachable` | GitHub couldn't be reached to check the key. |
 
 Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
+
+### Signing in
+
+The app signs in the way an OAuth app does, with the authorization code flow and PKCE ([RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)), and /dev/null as the provider. The code it gets is bound to its key, so only the app that holds the key can redeem it.
+
+1. The app makes an ed25519 key and a random `code_verifier`, and opens this page in a browser session (`ASWebAuthenticationSession` on iOS):
+
+   ```text
+   https://dev-null.sh/mobile/authorize
+       ?fingerprint=SHA256:hPEdU4FVZ1lfjzbPyBhqTWG2qxUu3ZbCnD8mZw9t2Vk
+       &device_name=devnull%20on%20iPhone
+       &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+       &code_challenge_method=S256
+       &state=af0ifjsldkj
+       &redirect_uri=devnull://auth/callback
+   ```
+
+   `code_challenge` is `base64url(sha256(code_verifier))` without padding. `redirect_uri` has to start with `devnull://`. A guest signs in with GitHub first and comes back to the page. A request with a missing or bad parameter gets an error page and is never redirected.
+2. The page asks "Approve devnull on iPhone?", with the key's fingerprint and the account it signs in as. **Approve** redirects (`303`) to `devnull://auth/callback?code=…&state=af0ifjsldkj`. **Cancel** goes to `devnull://auth/callback?error=access_denied&state=af0ifjsldkj`. The app checks that `state` is the one it sent. A code is good for 5 minutes and only once, and each user can approve 10 times a minute.
+3. The app redeems the code with `POST /api/v1/devices`, signed with the key like any other request, though the key isn't approved yet:
+
+   ```json
+   {"code": "…", "code_verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"}
+   ```
+
+   The key becomes an approved device of the user who approved it, and the answer is `200` with the user, like `GET /api/v1/me`. From then on every request it signs is theirs, until they revoke the device.
+
+| Status | `code` | Means |
+|---|---|---|
+| `200` | | The device is approved. The body is the user, with `unread_notifications_count`. |
+| `400` | `invalid_grant` | The code is wrong, expired or used, was handed out for another key, or the verifier doesn't match. Sign in again. |
+| `401` | `invalid_signature` | The signature is bad, expired or used already. |
+| `422` | | `code` or `code_verifier` is missing, or the verifier isn't 43 to 128 characters of `A-Z a-z 0-9 - . _ ~`. |
+| `429` | `rate_limited` | Over 12 tries a minute for one key, or 60 from one IP, counted before signatures are checked. `Retry-After` says when to try again. |
 
 ## Available Tooling
 
