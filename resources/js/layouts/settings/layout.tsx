@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { edit as editAppearance } from '@/routes/appearance';
+import { index as devices } from '@/routes/device';
 import { edit as editSafety } from '@/routes/safety';
 import { show as showTerminal } from '@/routes/terminal';
 import { edit } from '@/routes/user-profile';
@@ -37,6 +38,11 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                             title: 'Safety',
                             href: editSafety(),
                             isActive: isCurrentUrl(editSafety()),
+                        },
+                        {
+                            title: 'Devices',
+                            href: devices(),
+                            isActive: isCurrentUrl(devices()),
                         },
                     ]}
                 />

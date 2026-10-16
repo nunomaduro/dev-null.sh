@@ -21,6 +21,7 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -256,6 +257,10 @@ Route::middleware('auth')->group(function (): void {
 
     // Safety...
     Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
+
+    // Devices...
+    Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
+    Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
