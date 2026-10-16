@@ -115,7 +115,8 @@ export default function Welcome() {
                             <p className="mt-3 max-w-[38ch] text-lg text-pretty text-muted-foreground">
                                 Sign in with GitHub, follow people who write
                                 code, and commit plain text to a shared log, 280
-                                characters at a time.
+                                characters at a time. Everything else goes to
+                                /dev/null.
                             </p>
                         </Commit>
 
@@ -153,11 +154,6 @@ export default function Welcome() {
                         </Commit>
                     </ol>
                 </main>
-
-                <footer className="mx-auto w-full max-w-4xl pr-4 pb-8 pl-14 text-sm text-muted-foreground sm:pr-8 sm:pl-24">
-                    No likes. No reposts. No algorithm. Everything else goes to
-                    /dev/null.
-                </footer>
             </div>
         </>
     );
