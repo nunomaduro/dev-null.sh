@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
+use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CurrentUserController;
+use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Cli\CommitController;
@@ -36,5 +39,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that is on the user's GitHub account...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Log...
+        Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');
+
+        // Commit Reply...
+        Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
+            ->withTrashed()
+            ->name('api-commit-reply.index');
+
+        // Notifications...
+        Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
     });
 });
