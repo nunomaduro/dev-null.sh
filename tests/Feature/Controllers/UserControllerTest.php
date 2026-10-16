@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Shadow;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -16,6 +17,7 @@ it('renders a user profile', function (): void {
     $user->followers()->attach($viewer);
     $user->following()->attach(User::factory()->count(2)->create());
 
+    Shadow::factory()->create(['user_id' => $user->id, 'glyph' => '⚡']);
     Commit::factory()->for($user)->create(['created_at' => now()->subDay(), 'body' => 'Older']);
     Commit::factory()->for($user)->create(['body' => 'Newer']);
     Commit::factory()->create();
@@ -41,6 +43,7 @@ it('renders a user profile', function (): void {
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
+            ->where('commits.data.0.user.shadow.glyph', '⚡')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));

@@ -1,3 +1,4 @@
+import type { ShadowSkin, WalletData } from '@/types/economy';
 import type { Log } from '@/types/log';
 
 /**
@@ -20,6 +21,7 @@ export type User = {
     timezone: string | null;
     created_at: string;
     updated_at: string;
+    shadow?: { name: string; glyph: string; skin: ShadowSkin } | null;
 };
 
 export type Profile = User & {
@@ -37,6 +39,7 @@ export type Auth = {
     log: Log | null;
     unreadNotificationsCount: number;
     pasteis: { remaining: number; day: string } | null;
+    wallet?: WalletData | null;
 };
 
 export type SuggestedUser = User & {

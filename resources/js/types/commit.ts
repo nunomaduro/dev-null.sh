@@ -66,6 +66,8 @@ export type Commit = {
     stars_count: number;
     pasteis_count: number;
     starred: boolean;
+    tips_count?: number;
+    tips_total_bytes?: number | null;
     user: User;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;

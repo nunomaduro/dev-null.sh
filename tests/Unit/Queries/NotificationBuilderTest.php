@@ -133,6 +133,20 @@ it('keeps stars on approved commits', function (): void {
     expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
 });
 
+it('keeps kudos notifications on approved commits', function (): void {
+    $notification = Notification::factory()->starred()->create(['type' => NotificationType::Tipped]);
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides kudos notifications when the commit is rejected', function (): void {
+    $notification = Notification::factory()->starred()->create(['type' => NotificationType::Tipped]);
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
 it('hides stars once the commit is rejected', function (): void {
     $notification = Notification::factory()->starred()->create();
 

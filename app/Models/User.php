@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +57,11 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
+ * @property-read Wallet|null $wallet
+ * @property-read Shadow|null $shadow
+ * @property-read Collection<int, CommitTip> $sentTips
+ * @property-read Collection<int, CommitTip> $receivedTips
+ * @property-read Collection<int, DailyEpochClaim> $dailyEpochClaims
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -153,6 +159,46 @@ final class User extends Authenticatable
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * @return HasOne<Wallet, $this>
+     */
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    /**
+     * @return HasOne<Shadow, $this>
+     */
+    public function shadow(): HasOne
+    {
+        return $this->hasOne(Shadow::class);
+    }
+
+    /**
+     * @return HasMany<CommitTip, $this>
+     */
+    public function sentTips(): HasMany
+    {
+        return $this->hasMany(CommitTip::class, 'sender_id');
+    }
+
+    /**
+     * @return HasMany<CommitTip, $this>
+     */
+    public function receivedTips(): HasMany
+    {
+        return $this->hasMany(CommitTip::class, 'recipient_id');
+    }
+
+    /**
+     * @return HasMany<DailyEpochClaim, $this>
+     */
+    public function dailyEpochClaims(): HasMany
+    {
+        return $this->hasMany(DailyEpochClaim::class);
     }
 
     /**

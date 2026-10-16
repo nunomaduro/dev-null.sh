@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Support\LevelProgression;
+
 enum UnixRank: string
 {
     case User = 'user';
@@ -15,13 +17,18 @@ enum UnixRank: string
 
     public static function forXp(int $xp): self
     {
-        return match (true) {
-            $xp >= self::Root->minXp() => self::Root,
-            $xp >= self::Wheel->minXp() => self::Wheel,
-            $xp >= self::Maintainer->minXp() => self::Maintainer,
-            $xp >= self::Operator->minXp() => self::Operator,
-            $xp >= self::Daemon->minXp() => self::Daemon,
-            default => self::User,
+        return LevelProgression::rankForLevel(LevelProgression::forXp($xp));
+    }
+
+    public function minLevel(): int
+    {
+        return match ($this) {
+            self::User => 1,
+            self::Daemon => 10,
+            self::Operator => 25,
+            self::Maintainer => 45,
+            self::Wheel => 70,
+            self::Root => 100,
         };
     }
 
@@ -39,14 +46,7 @@ enum UnixRank: string
 
     public function minXp(): int
     {
-        return match ($this) {
-            self::User => 0,
-            self::Daemon => 50,
-            self::Operator => 150,
-            self::Maintainer => 400,
-            self::Wheel => 1000,
-            self::Root => 2500,
-        };
+        return LevelProgression::xpForLevel($this->minLevel());
     }
 
     public function description(): string
@@ -58,6 +58,18 @@ enum UnixRank: string
             self::Maintainer => 'Codebase curator managing repository state',
             self::Wheel => 'Member of the trusted wheel administrative group',
             self::Root => 'Superuser with full kernel privileges (UID 0)',
+        };
+    }
+
+    public function auraColor(): string
+    {
+        return match ($this) {
+            self::User => 'gray',
+            self::Daemon => 'cyan',
+            self::Operator => 'blue',
+            self::Maintainer => 'magenta',
+            self::Wheel => 'yellow',
+            self::Root => 'red',
         };
     }
 

@@ -6,6 +6,7 @@ import UserFollowController from '@/actions/App/Http/Controllers/UserFollowContr
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { DailyClaimBanner } from '@/components/daily-claim-banner';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
@@ -183,6 +184,8 @@ export default function Show({
                     </button>
                 </div>
             )}
+
+            <DailyClaimBanner />
 
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed
