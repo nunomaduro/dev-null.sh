@@ -7,7 +7,7 @@ use App\Dto\Embed;
 use App\Enums\EmbedKind;
 use App\Services\EmbedProviders\YouTube;
 use App\Services\Embeds;
-use Illuminate\Support\Env;
+use Dotenv\Repository\RepositoryBuilder;
 use Uri\WhatWg\Url;
 
 it('embeds links to a provider', function (): void {
@@ -63,9 +63,16 @@ it('asks the providers in order', function (): void {
 });
 
 it('reads the provider list from the environment', function (): void {
-    Env::getRepository()->set('EMBEDS_PROVIDERS', ' youtube, ,spotify ');
-    $config = require config_path('embeds.php');
-    Env::getRepository()->clear('EMBEDS_PROVIDERS');
+    // Parallel workers inherit EMBEDS_PROVIDERS from .env, and Laravel's repository never overwrites a variable that is already set.
+    $repository = RepositoryBuilder::createWithDefaultAdapters()->make();
+    $original = $repository->get('EMBEDS_PROVIDERS');
+
+    try {
+        $repository->set('EMBEDS_PROVIDERS', ' youtube, ,spotify ');
+        $config = require config_path('embeds.php');
+    } finally {
+        $original === null ? $repository->clear('EMBEDS_PROVIDERS') : $repository->set('EMBEDS_PROVIDERS', $original);
+    }
 
     expect($config['only'])->toBe(['youtube', 'spotify']);
 });
