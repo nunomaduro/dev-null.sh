@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Ban;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
@@ -190,6 +192,54 @@ it('fails when the state is invalid', function (): void {
             'type' => 'error',
             'message' => __('Unable to sign in with GitHub. Please try again.'),
         ]);
+
+    $this->assertGuest();
+});
+
+it('refuses a banned github account, even under a new username or after its account was deleted', function (bool $exists): void {
+    if ($exists) {
+        User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+    }
+
+    Ban::factory()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $response = $this->get(route('login.store'));
+
+    $response->assertRedirectToRoute('home')
+        ->assertInertiaFlash('toast', [
+            'type' => 'error',
+            'message' => 'This GitHub account is banned from /dev/null.',
+        ]);
+
+    $this->assertGuest();
+
+    expect(User::query()->withoutGlobalScopes()->pluck('username')->all())->toBe($exists ? ['old-username'] : []);
+
+    Queue::assertNothingPushed();
+})->with([
+    'existing account' => [true],
+    'deleted account' => [false],
+]);
+
+it('signs a banned user out of the session they already had', function (): void {
+    $user = User::factory()->create();
+    $session = [Auth::guard('web')->getName() => $user->id];
+
+    $this->withSession($session)
+        ->get(route('notification.index'))
+        ->assertOk();
+
+    Ban::factory()->create(['github_id' => $user->github_id]);
+    Auth::forgetGuards();
+
+    $this->withSession($session)
+        ->get(route('notification.index'))
+        ->assertRedirectToRoute('home');
 
     $this->assertGuest();
 });

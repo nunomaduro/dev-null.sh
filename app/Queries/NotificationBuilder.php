@@ -42,13 +42,13 @@ final class NotificationBuilder extends Builder
     }
 
     /**
-     * Leaves out what actors the recipient mutes did, and anything from across a block. Moderation
-     * notifications are their own actor, and nobody can mute or block themselves.
+     * Leaves out what actors the recipient mutes did, anything from across a block, and what banned users did.
+     * Moderation notifications are their own actor, and nobody can mute or block themselves.
      */
     private function withoutSilencedActors(): self
     {
         $silenced = new SilencedActorQuery('notifications.recipient_id', 'notifications.actor_id');
 
-        return $this->whereNotExists($silenced->mutes(...))->whereNotExists($silenced->blocks(...));
+        return $this->whereNotExists($silenced->mutes(...))->whereNotExists($silenced->blocks(...))->whereHas('actor');
     }
 }

@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Ban;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,10 @@ final readonly class SessionController
         }
 
         assert($githubUser instanceof GitHubUser);
+
+        if (Ban::query()->where('github_id', (string) $githubUser->getId())->exists()) {
+            return $this->failed(__('This GitHub account is banned from /dev/null.'));
+        }
 
         $user = $action->handle($githubUser);
 
@@ -68,11 +73,11 @@ final readonly class SessionController
         return to_route('home');
     }
 
-    private function failed(): RedirectResponse
+    private function failed(?string $message = null): RedirectResponse
     {
         Inertia::flash('toast', [
             'type' => 'error',
-            'message' => __('Unable to sign in with GitHub. Please try again.'),
+            'message' => $message ?? __('Unable to sign in with GitHub. Please try again.'),
         ]);
 
         return to_route('home');

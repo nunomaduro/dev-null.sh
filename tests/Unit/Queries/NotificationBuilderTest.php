@@ -9,6 +9,7 @@ use App\Actions\DeleteUserFollow;
 use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Models\Ban;
 use App\Models\Notification;
 
 it('scopes notifications to unread ones', function (): void {
@@ -192,3 +193,17 @@ it('hides replies, mentions and stars across a block in either direction', funct
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
 })->with(['replied', 'mentioned', 'starred'])->with([true, false]);
+
+it('hides what banned users did, until the ban is lifted', function (): void {
+    $followed = Notification::factory()->create();
+    $starred = Notification::factory()->starred()->create();
+
+    Ban::factory()->create(['github_id' => $followed->actor->github_id]);
+    Ban::factory()->create(['github_id' => $starred->actor->github_id]);
+
+    expect(Notification::query()->relevant()->exists())->toBeFalse();
+
+    Ban::query()->delete();
+
+    expect(Notification::query()->relevant()->count())->toBe(2);
+});
