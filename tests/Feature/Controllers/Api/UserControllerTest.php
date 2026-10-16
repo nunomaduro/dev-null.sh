@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
+use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 
 it('shows a public profile with public counts', function (): void {
@@ -117,10 +118,14 @@ it('shows a signed request the profile as the web shows it to its user', functio
             ],
             'is_following' => true,
             'follows_you' => false,
+            'is_muting' => false,
             'activity' => resolve(UserActivityQuery::class)->get($user, $viewer),
             'streaks' => ['longest' => 1, 'current' => 1],
+            'achievements' => resolve(UserAchievementsQuery::class)->get($user, $viewer),
             'pinned_commit' => null,
         ])
+        ->assertJsonPath('achievements.rank', 'user')
+        ->assertJsonPath('achievements.level', 1)
         ->assertJsonPath('activity.scale', 'week')
         ->assertJsonCount(7, 'activity.buckets')
         ->assertJsonPath('activity.buckets.3', ['date' => '2026-10-12', 'count' => 1])
@@ -156,6 +161,41 @@ it('tells a signed request whether the profile follows its user', function (): v
         ->assertOk()
         ->assertJsonPath('is_following', false)
         ->assertJsonPath('follows_you', true);
+});
+
+it('tells a signed request whether its user mutes the profile, which still shows', function (): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+
+    $viewer->muting()->attach($user);
+
+    signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('is_muting', true);
+
+    signedApiRequest($keyPair, 'GET', route('api-user-commit.index', $user))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$commit->id]);
+});
+
+it('shows a signed request the achievements and unix rank of the profile', function (): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $user = User::factory()->create();
+    Commit::factory()->for($user)->count(60)->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('achievements', resolve(UserAchievementsQuery::class)->get($user, $viewer))
+        ->assertJsonPath('achievements.rank', 'maintainer')
+        ->assertJsonPath('achievements.level', 4)
+        ->assertJsonCount(6, 'achievements.ranks');
+
+    $this->getJson(route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonMissingPath('achievements');
 });
 
 it('shows a signed request the pinned commit of the profile', function (): void {
