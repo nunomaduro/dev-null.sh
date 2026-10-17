@@ -154,14 +154,15 @@ final readonly class OpenAI
     /**
      * The categories the content is flagged for, if any, each with its highest score: those OpenAI flags, and those
      * scoring above our own, stricter thresholds. The text goes along with the first image, and every other image is
-     * checked on its own, as a single request is only documented to take one image.
+     * checked on its own, as a single request is only documented to take one image. An empty text, as in a commit that
+     * is only a photo, is left out.
      *
      * @param  list<string>  $imageDataUrls
      * @return array<string, float>
      */
     public function moderate(string $text, array $imageDataUrls = []): array
     {
-        $inputs = [[['type' => 'text', 'text' => $text]]];
+        $inputs = [$text === '' ? [] : [['type' => 'text', 'text' => $text]]];
 
         foreach ($imageDataUrls as $index => $imageDataUrl) {
             $image = ['type' => 'image_url', 'image_url' => ['url' => $imageDataUrl]];
@@ -172,6 +173,8 @@ final readonly class OpenAI
                 $inputs[] = [$image];
             }
         }
+
+        $inputs = array_filter($inputs);
 
         $categories = [];
 

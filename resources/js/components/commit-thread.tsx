@@ -952,7 +952,9 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
-    const isReplyable = characterCount(body.trim()) >= minBodyLength;
+    const isReplyable =
+        characterCount(body.trim()) >= minBodyLength ||
+        attachments.images.length > 0;
     const suggestion = suggestEmoji(body);
     const preview = useComposerPreview({
         body,

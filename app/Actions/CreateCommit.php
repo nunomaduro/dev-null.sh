@@ -86,7 +86,7 @@ final readonly class CreateCommit
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
-            if (filled(config('services.openai.key'))) {
+            if ($commit->body !== '' && filled(config('services.openai.key'))) {
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
 

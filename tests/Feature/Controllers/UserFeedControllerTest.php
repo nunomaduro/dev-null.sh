@@ -152,6 +152,17 @@ it('titles entries with the start of long commits', function (): void {
         ->and((string) $feed->entry[0]->content)->toBe($body);
 });
 
+it('titles entries of images without a body', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => '']);
+    CommitImage::factory()->for($commit)->count(2)->sequence(['position' => 0], ['position' => 1])->create();
+
+    $feed = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect((string) $feed->entry[0]->title)->toBe('Images')
+        ->and((string) $feed->entry[0]->content)->toBe('');
+});
+
 it('escapes commits and profiles into valid xml', function (): void {
     $user = User::factory()->create([
         'username' => 'octocat',

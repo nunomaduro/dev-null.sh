@@ -108,8 +108,8 @@ final readonly class PageMetadata
             : "{$user->nameWithHandle()} on /dev/null";
 
         $body = Str::squish($this->urls->withShortenedUrls($commit->body));
-        $title = $author.': “'.Str::limit($body, self::TITLE_EXCERPT_LENGTH, '…', preserveWords: true).'”';
-        $description = Str::limit($body, self::DESCRIPTION_LENGTH, '…', preserveWords: true);
+        $title = $body === '' ? $author : $author.': “'.Str::limit($body, self::TITLE_EXCERPT_LENGTH, '…', preserveWords: true).'”';
+        $description = $body === '' ? $author : Str::limit($body, self::DESCRIPTION_LENGTH, '…', preserveWords: true);
 
         $images = [
             ...$this->commitImages($commit, $user),

@@ -55,6 +55,18 @@ it('embeds every commit again with --all', function (): void {
     expect($commit->refresh()->embedding)->toBe(embeddingVector(4));
 });
 
+it('leaves commits without a body alone', function (): void {
+    Http::fake();
+
+    Commit::factory()->create(['body' => '']);
+
+    $this->artisan('commits:embed')
+        ->expectsOutputToContain('Embedded 0 commits.')
+        ->assertSuccessful();
+
+    Http::assertNothingSent();
+});
+
 it('leaves deleted commits alone', function (): void {
     Http::fake();
 

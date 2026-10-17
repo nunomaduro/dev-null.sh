@@ -26,7 +26,7 @@ const workflow = [
 ].join('\n');
 
 const inputs = [
-    { name: 'body', description: 'The commit, 3 to 4,000 characters.' },
+    { name: 'body', description: 'The commit, 1 to 4,000 characters.' },
     {
         name: 'ssh-key',
         description:

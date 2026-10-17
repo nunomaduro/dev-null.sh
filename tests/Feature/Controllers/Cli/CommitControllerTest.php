@@ -166,7 +166,7 @@ it('validates the commit', function (string $body, string $message): void {
 
     expect(Commit::query()->count())->toBe(0);
 })->with([
-    'too short' => ['  ab  ', 'The body field must be at least 3 characters.'],
+    'blank' => ['    ', 'The body field is required.'],
     'too long' => [str_repeat('a', 4001), 'The body field must not be greater than 4000 characters.'],
 ]);
 

@@ -2,7 +2,7 @@ import { mapTypedProse } from '@/lib/code';
 import { characterCount } from '@/lib/utils';
 
 // Keep in sync with App\Models\Commit.
-export const minBodyLength = 3;
+export const minBodyLength = 1;
 export const maxBodyLength = 4000;
 export const previewLength = 280;
 export const previewLines = 8;

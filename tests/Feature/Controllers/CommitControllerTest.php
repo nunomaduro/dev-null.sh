@@ -6,6 +6,8 @@ use App\Actions\CreateQuoteNotifications;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Jobs\EmbedCommit;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -81,19 +83,19 @@ it('requires a body', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires the body to be at least 3 characters', function (): void {
+it('may create a commit of a single character', function (): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'body' => '  ab  ',
+            'body' => '  👍  ',
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('body');
+        ->assertSessionHasNoErrors();
 
-    expect(Commit::query()->count())->toBe(0);
+    expect($user->commits()->sole()->body)->toBe('👍');
 });
 
 it('requires the body to be at most 4,000 characters', function (): void {
@@ -740,6 +742,18 @@ it('shows guests the commit with its approved replies and a link preview', funct
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
 });
 
+it('titles the link preview of images without a body after the author', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => '']);
+    CommitImage::factory()->for($commit)->create();
+
+    $response = $this->get(route('commit.show', [$user, $commit]));
+
+    $response->assertOk()
+        ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta property="og:description" content="The Octocat (@octocat) on /dev/null">', false);
+});
+
 it('trims long commits in the link preview description', function (): void {
     $commit = Commit::factory()->create(['body' => str_repeat('Writing PHP on purpose. ', 9).'The end is not described.']);
 
@@ -1085,6 +1099,32 @@ it('may attach images to a commit', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->images)->toHaveCount(3)
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may create a commit of images without a body', function (): void {
+    Storage::fake();
+    Queue::fake();
+    config(['services.openai.key' => 'test-key']);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => '   ',
+            'images' => [UploadedFile::fake()->image('photo.jpg', 40, 30)],
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('')
+        ->and($commit->images)->toHaveCount(1);
+
+    Queue::assertPushed(ModerateCommit::class);
+    Queue::assertNotPushed(EmbedCommit::class);
 });
 
 it('may describe the images attached to a commit', function (): void {

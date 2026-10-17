@@ -151,7 +151,7 @@ function renderComposer(body: string): string {
     }
 }
 
-for (const count of [1, 2, 3, 3850]) {
+for (const count of [1, 2, 3850]) {
     void test(`counts ${count} emoji as Unicode characters in the preview composer`, () => {
         const markup = renderComposer('🚀'.repeat(count));
         const submit = markup.match(
@@ -159,7 +159,7 @@ for (const count of [1, 2, 3, 3850]) {
         )?.[0];
 
         assert.ok(submit);
-        assert.equal(/\sdisabled(?:=|\s|>)/.test(submit), count < 3);
+        assert.ok(!/\sdisabled(?:=|\s|>)/.test(submit));
         assert.equal(
             markup.includes(`aria-label="${4000 - count} characters left"`),
             count === 3850,

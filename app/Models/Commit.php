@@ -70,7 +70,7 @@ final class Commit extends Model
 
     public const int RESTORABLE_SECONDS = 30;
 
-    public const int MIN_BODY_LENGTH = 3;
+    public const int MIN_BODY_LENGTH = 1;
 
     public const int MAX_BODY_LENGTH = 4000;
 

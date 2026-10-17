@@ -118,7 +118,9 @@ function QuoteComposer({
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
 
-    const isQuotable = characterCount(body.trim()) >= minBodyLength;
+    const isQuotable =
+        characterCount(body.trim()) >= minBodyLength ||
+        attachments.images.length > 0;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && hasModKey(event) && isQuotable) {

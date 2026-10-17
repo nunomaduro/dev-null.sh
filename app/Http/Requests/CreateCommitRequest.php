@@ -26,6 +26,11 @@ final class CreateCommitRequest extends FormRequest
     public const array BODY_RULES = ['required', 'string', 'min:'.Commit::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH];
 
     /**
+     * A commit with images may have no body at all, so a photo can speak for itself.
+     */
+    public const array BODY_WITH_IMAGES_RULES = ['required_without:images', 'nullable', 'string', 'min:'.Commit::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH];
+
+    /**
      * Blank lines are collapsed before the body is measured, by every request that takes a body with BODY_RULES.
      */
     public static function normalizeBody(FormRequest $request): void
@@ -51,7 +56,7 @@ final class CreateCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => self::BODY_RULES,
+            'body' => self::BODY_WITH_IMAGES_RULES,
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],

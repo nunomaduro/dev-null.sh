@@ -63,7 +63,7 @@ final readonly class CreateUserFeed
     {
         $xml->startElement('entry');
         $xml->writeElement('id', "urn:uuid:{$commit->id}");
-        $xml->writeElement('title', $this->text(Str::limit(Str::squish($commit->body), 72, '…', preserveWords: true)));
+        $xml->writeElement('title', $commit->body === '' ? Str::plural('Image', $commit->images->count()) : $this->text(Str::limit(Str::squish($commit->body), 72, '…', preserveWords: true)));
         $this->link($xml, 'alternate', route('commit.show', [$user, $commit]), 'text/html');
 
         foreach ($commit->images as $image) {
