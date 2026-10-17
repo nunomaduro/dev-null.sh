@@ -4,6 +4,7 @@ import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { RescheduleCommitDialog } from '@/components/reschedule-commit-dialog';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
@@ -53,7 +54,13 @@ export default function Index({
                 >
                     <ArrowLeft className="size-4" />
                 </Link>
-                <h1 className="font-semibold">Scheduled commits</h1>
+                <h1
+                    id="scheduled-commits-heading"
+                    tabIndex={-1}
+                    className="font-semibold"
+                >
+                    Scheduled commits
+                </h1>
                 <LockKeyhole
                     className="ml-auto size-4 text-muted-foreground"
                     aria-label="Private"
@@ -93,7 +100,7 @@ export default function Index({
                                 key={scheduled.id}
                                 className="space-y-3 px-5 py-5 sm:px-6"
                             >
-                                <div className="flex items-start justify-between gap-3">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <p className="text-sm font-medium">
                                             {scheduled.status === 'scheduled'
@@ -115,29 +122,40 @@ export default function Index({
                                         </time>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
-                                            onClick={() => {
-                                                setCanceling(scheduled.id);
-                                                router.delete(
-                                                    ScheduledCommitController.destroy(
-                                                        scheduled.id,
-                                                    ),
-                                                    {
-                                                        preserveScroll: true,
-                                                        onFinish: () =>
-                                                            setCanceling(null),
-                                                    },
-                                                );
-                                            }}
-                                        >
-                                            {canceling === scheduled.id
-                                                ? 'Canceling…'
-                                                : 'Cancel'}
-                                        </Button>
+                                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                                            <RescheduleCommitDialog
+                                                id={scheduled.id}
+                                                scheduledAt={
+                                                    scheduled.scheduled_at
+                                                }
+                                                disabled={canceling !== null}
+                                            />
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={canceling !== null}
+                                                aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                                onClick={() => {
+                                                    setCanceling(scheduled.id);
+                                                    router.delete(
+                                                        ScheduledCommitController.destroy(
+                                                            scheduled.id,
+                                                        ),
+                                                        {
+                                                            preserveScroll: true,
+                                                            onFinish: () =>
+                                                                setCanceling(
+                                                                    null,
+                                                                ),
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {canceling === scheduled.id
+                                                    ? 'Canceling…'
+                                                    : 'Cancel'}
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
                                 {scheduled.body && (
