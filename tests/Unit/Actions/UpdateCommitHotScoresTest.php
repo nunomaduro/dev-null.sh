@@ -86,3 +86,26 @@ it('does not count quotes of replies others cannot see', function (): void {
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });
+
+it('scores many threads at once, each by its own engagement', function (): void {
+    $quiet = Commit::factory()->create();
+    $starred = Commit::factory()->create();
+    $starred->stars()->attach(User::factory()->count(3)->create());
+    $repliedTo = Commit::factory()->create();
+    $reply = Commit::factory()->for($repliedTo, 'parent')->create();
+
+    resolve(UpdateCommitHotScores::class)->handle([$quiet->id, $starred->id, $reply->id]);
+
+    expect($quiet->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($quiet->created_at, 0, 0), 1e-9)
+        ->and($starred->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, 3, 0), 1e-9)
+        ->and($repliedTo->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
+});
+
+it('leaves deleted threads as they are', function (): void {
+    $commit = Commit::factory()->create(['hot_score' => 12.5]);
+    $commit->delete();
+
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    expect(Commit::withTrashed()->findOrFail($commit->id)->hot_score)->toBe(12.5);
+});

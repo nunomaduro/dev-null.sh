@@ -1,0 +1,28 @@
+diff --git a/dist/index.js b/dist/index.js
+index 9f913f0d373a177baae22ed667d831c0e512c82e..6ce0e5df3843ec51989f9bad64c8256fbaeb6e76 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -501,16 +501,20 @@ function generateFontFace(family, filePathMap) {
+   for (const variant of family.variants) {
+     const rangedFiles = variant.files.filter((f) => f.unicodeRange);
+     const nonRangedFiles = variant.files.filter((f) => !f.unicodeRange);
++    const filesByRange = /* @__PURE__ */ new Map();
+     for (const file of rangedFiles) {
+-      const fileSrc = `url("${filePathMap.get(file.source) ?? file.source}") format("${formatKeyword(file.format)}")`;
++      filesByRange.set(file.unicodeRange, [...filesByRange.get(file.unicodeRange) ?? [], file]);
++    }
++    for (const [unicodeRange, files] of filesByRange) {
++      const src = generateSrc(files, filePathMap);
+       rules.push([
+         "@font-face {",
+         `  font-family: "${family.family}";`,
+         `  font-style: ${variant.style};`,
+         `  font-weight: ${String(variant.weight)};`,
+         `  font-display: ${family.display};`,
+-        `  src: ${fileSrc};`,
+-        `  unicode-range: ${file.unicodeRange};`,
++        `  src: ${src};`,
++        `  unicode-range: ${unicodeRange};`,
+         "}"
+       ].join("\n"));
+     }

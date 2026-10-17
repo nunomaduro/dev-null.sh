@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\CommitBodies;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,7 +25,7 @@ final readonly class ScheduledCommitController
     public function index(#[CurrentUser] User $user, CommitBodies $bodies): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => ScheduledCommit::query()->where('user_id', $user->id)
+            'scheduledCommits' => fn (): LengthAwarePaginator => ScheduledCommit::query()->where('user_id', $user->id)
                 ->whereNull('canceled_at')->with('commit')
                 ->orderByRaw('submitted_at IS NOT NULL')->orderBy('scheduled_at')->orderBy('id')
                 ->paginate(20)->through(fn (ScheduledCommit $scheduled): array => [

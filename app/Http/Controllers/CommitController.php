@@ -16,7 +16,9 @@ use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,22 +30,23 @@ final readonly class CommitController
      */
     public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
-        $threadReplies = $replies->paginate($commit, $currentUser);
+        $threadReplies = null;
+        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser): CursorPaginator {
+            return $threadReplies ??= $replies->paginate($commit, $currentUser);
+        };
 
-        $preview = $currentUser instanceof User ? null : $metadata->commit(
+        $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
             $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
-            $threadReplies->items(),
+            $getReplies()->items(),
         );
 
-        $commit = Commit::query()
-            ->withVisibleReplyCount($currentUser)
-            ->withCardDataFor($currentUser)
-            ->findOrFail($commit->id);
-
         return Inertia::render('commit/show', [
-            'commit' => $commit,
-            'ancestors' => $ancestors->get($commit, $currentUser),
-            'replies' => $threadReplies,
+            'commit' => fn (): Commit => Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withCardDataFor($currentUser)
+                ->findOrFail($commit->id),
+            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
+            'replies' => $getReplies,
         ])->withViewData(['preview' => $preview]);
     }
 

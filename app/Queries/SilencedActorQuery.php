@@ -7,7 +7,8 @@ namespace App\Queries;
 use Illuminate\Database\Query\Builder;
 
 /**
- * Subqueries for `whereNotExists` that match when the recipient mutes the actor, or either one blocks the other.
+ * Subqueries for `whereNotExists` that match when the recipient mutes the actor, blocks the actor, or is blocked by
+ * the actor. The two block directions stay separate subqueries so each one is a lookup on the blocks primary key.
  */
 final readonly class SilencedActorQuery
 {
@@ -23,14 +24,17 @@ final readonly class SilencedActorQuery
             ->whereColumn('mutes.muted_id', $this->actorColumn);
     }
 
-    public function blocks(Builder $query): Builder
+    public function blocking(Builder $query): Builder
     {
         return $query->from('blocks')
-            ->where(fn (Builder $query): Builder => $query
-                ->whereColumn('blocks.blocker_id', $this->recipientColumn)
-                ->whereColumn('blocks.blocked_id', $this->actorColumn))
-            ->orWhere(fn (Builder $query): Builder => $query
-                ->whereColumn('blocks.blocker_id', $this->actorColumn)
-                ->whereColumn('blocks.blocked_id', $this->recipientColumn));
+            ->whereColumn('blocks.blocker_id', $this->recipientColumn)
+            ->whereColumn('blocks.blocked_id', $this->actorColumn);
+    }
+
+    public function blockers(Builder $query): Builder
+    {
+        return $query->from('blocks')
+            ->whereColumn('blocks.blocker_id', $this->actorColumn)
+            ->whereColumn('blocks.blocked_id', $this->recipientColumn);
     }
 }

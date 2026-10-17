@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $timezone
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
@@ -119,6 +120,7 @@ final class User extends Authenticatable
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
+            'timezone' => 'string',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

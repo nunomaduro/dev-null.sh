@@ -7,6 +7,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Support\Facades\DB;
 
 function commitWithPhotos(int $count = 2): Commit
 {
@@ -38,6 +39,35 @@ it('shows the commit page with the photo open', function (): void {
             ->where('photo.commit.body', 'Offsite photo dump')
             ->has('photo.commit.images', 2)
             ->where('photo.commit.replies_count', 1));
+});
+
+it('reloads the photo commit alone without loading its thread', function (): void {
+    $viewer = User::factory()->create();
+    $queries = function (Commit $commit) use ($viewer): int {
+        $this->actingAs($viewer)
+            ->get(route('commit-photo.show', [$commit->user, $commit, 1]))
+            ->assertOk()
+            ->assertInertia(function ($page) use ($commit): void {
+                DB::flushQueryLog();
+                DB::enableQueryLog();
+
+                $page->reloadOnly('commit', fn ($reload) => $reload
+                    ->where('commit.id', $commit->id)
+                    ->missing('replies')
+                    ->missing('ancestors')
+                    ->missing('photo'));
+
+                DB::disableQueryLog();
+            });
+
+        return count(DB::getQueryLog());
+    };
+    $alone = commitWithPhotos();
+    $inThread = commitWithPhotos();
+    $inThread->parent()->associate(Commit::factory()->for(Commit::factory(), 'parent')->create())->save();
+    Commit::factory()->for($inThread, 'parent')->count(3)->create();
+
+    expect($queries($inThread))->toBe($queries($alone));
 });
 
 it('does not show a photo the commit does not have', function (int $photo): void {

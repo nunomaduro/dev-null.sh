@@ -9,6 +9,7 @@ import {
     ThreadReplies,
     useThread,
 } from '../../resources/js/components/commit-thread';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type { Commit } from '../../resources/js/types';
 
 const reply = (id: string): Commit =>
@@ -21,7 +22,7 @@ const reply = (id: string): Commit =>
         status: 'approved',
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         replies_count: 0,
-        user: { id: 'author', name: 'Author', username: 'author', lane: 1 },
+        user: { id: 'author', name: 'Author', username: 'author', lane: 1, timezone: null },
     }) as Commit;
 
 async function renderThread(count: number) {
@@ -40,10 +41,10 @@ async function renderThread(count: number) {
     function Preview() {
         const thread = useThread(commit);
         return (
-            <>
+            <TooltipProvider>
                 <ThreadActions thread={thread} />
                 <ThreadReplies thread={thread} depth={0} />
-            </>
+            </TooltipProvider>
         );
     }
 

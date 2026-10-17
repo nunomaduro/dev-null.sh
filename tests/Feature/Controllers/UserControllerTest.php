@@ -81,11 +81,53 @@ it('does not count the user relations or activity when reloading only commits', 
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
 })->with(['commits', 'replies']);
+
+it('does not count the profile of guests reloading only commits', function (): void {
+    User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+
+    DB::enableQueryLog();
+
+    $this->get('/@octocat', [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'commits',
+    ])
+        ->assertOk()
+        ->assertJsonCount(1, 'props.commits.data')
+        ->assertJsonMissingPath('props.user');
+
+    expect(collect(DB::getQueryLog())
+        ->pluck('query')
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
+        ->all())
+        ->not->toBeEmpty()
+        ->each(fn ($query) => $query->not->toContain('count(*)'));
+});
+
+it('counts the profile of guests once for both the page and its link preview', function (): void {
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    $user->followers()->attach(User::factory()->create());
+
+    DB::enableQueryLog();
+
+    $this->get('/@octocat')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('user.commits_count', 1)
+            ->where('user.followers_count', 1))
+        ->assertSee('"userInteractionCount":1', false);
+
+    expect(collect(DB::getQueryLog())
+        ->pluck('query')
+        ->filter(fn (string $query): bool => str_starts_with($query, 'select count(*) as "aggregate" from "follows" where "follows"."followed_id"')))
+        ->toHaveCount(1);
+});
 
 it('renders the user commit activity for the last year', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));

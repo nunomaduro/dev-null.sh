@@ -49,6 +49,8 @@ final class NotificationBuilder extends Builder
     {
         $silenced = new SilencedActorQuery('notifications.recipient_id', 'notifications.actor_id');
 
-        return $this->whereNotExists($silenced->mutes(...))->whereNotExists($silenced->blocks(...));
+        return $this->whereNotExists($silenced->mutes(...))
+            ->whereNotExists($silenced->blocking(...))
+            ->whereNotExists($silenced->blockers(...));
     }
 }

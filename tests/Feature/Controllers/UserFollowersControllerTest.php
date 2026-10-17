@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it("lists a user's followers", function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
@@ -85,6 +87,27 @@ it('previews the list to guests without letting search engines index it', functi
         ->assertSee('<meta name="robots" content="noindex, follow">', false)
         ->assertSee('<link rel="canonical" href="'.route('user-followers.index', $user).'">', false)
         ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false);
+});
+
+it('does not count the user for guests loading more of the list', function (): void {
+    $user = User::factory()->create();
+    $user->followers()->attach(User::factory()->create());
+
+    DB::enableQueryLog();
+
+    $this->get(route('user-followers.index', $user), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/connections',
+        'X-Inertia-Partial-Data' => 'users',
+    ])
+        ->assertOk()
+        ->assertJsonCount(1, 'props.users.data')
+        ->assertJsonMissingPath('props.user');
+
+    expect(collect(DB::getQueryLog())->pluck('query')->all())
+        ->not->toBeEmpty()
+        ->each->not->toContain('count(*)');
 });
 
 it('keeps the default link preview of the list for signed-in users', function (): void {

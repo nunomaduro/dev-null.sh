@@ -70,3 +70,43 @@ void test('leaves /dev/null inside longer paths, words, URLs and usernames as te
 
     assert.ok(!markup.includes('title="/dev/null"'));
 });
+
+const commitUrl =
+    'https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8';
+
+void test('shows a dev/null commit link as its author and short hash', () => {
+    const text = `same root cause as ${commitUrl}.`;
+    const markup = renderToStaticMarkup(<LinkifiedText text={text} />);
+
+    assert.ok(
+        markup.includes(
+            'href="/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8"',
+        ),
+    );
+    assert.ok(markup.includes(`title="${commitUrl}"`));
+    assert.ok(markup.includes('aria-label="@Hacksore’s commit 5149ca8"'));
+    assert.equal(
+        markup.replace(/<[^>]+>/g, ''),
+        `same root cause as ${commitUrl}Hacksore/5149ca8.`,
+    );
+    assert.equal(
+        markup
+            .replace(/<span aria-hidden="true"[^>]*>.*?<\/span><\/a>/g, '')
+            .replace(/<[^>]+>/g, ''),
+        text,
+    );
+});
+
+for (const link of [
+    'https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8/photos/1',
+    'https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8?tab=replies',
+    'https://example.com/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8',
+    'https://dev-null.sh/@Hacksore',
+]) {
+    void test(`keeps other links as URLs: ${link}`, () => {
+        const markup = renderToStaticMarkup(<LinkifiedText text={link} />);
+
+        assert.ok(!markup.includes('aria-label'));
+        assert.ok(markup.includes(`href="${link}"`));
+    });
+}

@@ -23,6 +23,7 @@ import {
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -201,23 +202,23 @@ export function CommitCard({
                                 >
                                     ·
                                 </span>
-                                <Link
-                                    href={permalink}
-                                    className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                    data-test="commit-permalink"
+                                <TimestampTooltip
+                                    date={commit.created_at}
+                                    author={commit.user}
                                 >
-                                    <time
-                                        dateTime={commit.created_at}
-                                        title={new Date(
-                                            commit.created_at,
-                                        ).toLocaleString()}
+                                    <Link
+                                        href={permalink}
+                                        className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
+                                        data-test="commit-permalink"
                                     >
-                                        {formatRelativeTime(
-                                            commit.created_at,
-                                            now,
-                                        )}
-                                    </time>
-                                </Link>
+                                        <time dateTime={commit.created_at}>
+                                            {formatRelativeTime(
+                                                commit.created_at,
+                                                now,
+                                            )}
+                                        </time>
+                                    </Link>
+                                </TimestampTooltip>
 
                                 {commit.status !== 'approved' && (
                                     <span
@@ -323,9 +324,18 @@ export function CommitCard({
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                                    <time dateTime={commit.created_at}>
-                                        {formatFullDateTime(commit.created_at)}
-                                    </time>
+                                    <TimestampTooltip
+                                        date={commit.created_at}
+                                        author={commit.user}
+                                    >
+                                        <time dateTime={commit.created_at}>
+                                            {formatFullDateTime(
+                                                commit.created_at,
+                                                auth.user?.timezone ??
+                                                    undefined,
+                                            )}
+                                        </time>
+                                    </TimestampTooltip>
                                     <span aria-hidden> · </span>
                                     <span
                                         title={`Commit ${commit.id}`}

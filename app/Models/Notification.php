@@ -35,13 +35,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read int $event_count
  * @property-read int $actors_count
  * @property-read int $unread_count
+ * @property-read string|null $second_actor_id
+ * @property-read string|null $third_actor_id
  * @property-read Collection<int, User> $actors
  */
 #[Hidden([
     'key',
     'group_rank',
-    'group_actor_position',
     'actor_position',
+    'second_actor_id',
+    'third_actor_id',
 ])]
 #[UseEloquentBuilder(NotificationBuilder::class)]
 final class Notification extends Model

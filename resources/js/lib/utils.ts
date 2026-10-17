@@ -53,16 +53,18 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
     });
 }
 
-export function formatFullDateTime(date: string): string {
+export function formatFullDateTime(date: string, timeZone?: string): string {
     const value = new Date(date);
 
     return `${value.toLocaleTimeString(undefined, {
         hour: 'numeric',
         minute: '2-digit',
+        timeZone,
     })} · ${value.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
+        timeZone,
     })}`;
 }
 
@@ -137,6 +139,36 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         day: 'numeric',
         year: day.getFullYear() === now.getFullYear() ? undefined : 'numeric',
     });
+}
+
+export function browserTimeZone(): string {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+export function formatZonedTime(date: string, timeZone: string): string {
+    return new Date(date).toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone,
+    });
+}
+
+export function formatZonedDate(date: string, timeZone: string): string {
+    const value = new Date(date);
+
+    return value.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year:
+            value.getFullYear() === new Date().getFullYear()
+                ? undefined
+                : 'numeric',
+        timeZone,
+    });
+}
+
+export function timeZoneCity(timeZone: string): string {
+    return timeZone.slice(timeZone.lastIndexOf('/') + 1).replaceAll('_', ' ');
 }
 
 /**

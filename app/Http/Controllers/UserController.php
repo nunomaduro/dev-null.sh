@@ -42,8 +42,13 @@ final readonly class UserController
             return $streakData ??= $streaks->get($user, $currentUser);
         };
 
+        $countedUser = null;
+        $getCountedUser = function () use (&$countedUser, $user, $currentUser): User {
+            return $countedUser ??= $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts();
+        };
+
         return Inertia::render('user/show', [
-            'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
+            'user' => $getCountedUser,
             'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
@@ -78,7 +83,7 @@ final readonly class UserController
                 ->latest('id')
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
-        ])->withViewData(['preview' => $currentUser instanceof User ? null : $metadata->user($user->loadPublicCounts())]);
+        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 
     public function destroy(DeleteUserRequest $request, #[CurrentUser] User $user, DeleteUser $action): RedirectResponse

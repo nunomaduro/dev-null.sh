@@ -10,6 +10,7 @@ use App\Models\CommitReport;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -30,20 +31,14 @@ final readonly class DeleteUser
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $topLevelIds = $user->commits()->withTrashed()->topLevel()->pluck('id')->all();
-            $replyIds = $user->commits()->withTrashed()->whereNotNull('parent_id')->pluck('id')->all();
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user)];
 
-            $imagePaths = [
-                ...$this->imagePaths([...$this->withReplies($topLevelIds), ...$replyIds]),
-                ...$this->scheduledImagePaths($user),
-            ];
+            $user->commits()->withTrashed()->topLevel()->forceDelete();
+            CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
+            CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
 
-            Commit::query()->withTrashed()->whereKey($topLevelIds)->forceDelete();
-            CommitImage::query()->whereIn('commit_id', $replyIds)->delete();
-            CommitReport::query()->whereIn('commit_id', $replyIds)->delete();
-
-            while (($leafIds = $this->repliesWithoutReplies($user)) !== []) {
-                Commit::query()->withTrashed()->whereKey($leafIds)->forceDelete();
+            while ($this->replies($user)->whereDoesntHave('replies', fn (CommitBuilder $replies): CommitBuilder => $replies->withTrashed())->forceDelete() > 0) {
+                //
             }
 
             $user->commits()->delete();
@@ -77,42 +72,23 @@ final readonly class DeleteUser
     }
 
     /**
-     * @param  array<mixed>  $commitIds
-     * @return array<mixed>
+     * @return HasMany<Commit, User>
      */
-    private function withReplies(array $commitIds): array
+    private function replies(User $user): HasMany
     {
-        $allIds = [];
-        $level = $commitIds;
-
-        while ($level !== []) {
-            $allIds = [...$allIds, ...$level];
-            $level = Commit::query()->withTrashed()->whereIn('parent_id', $level)->pluck('id')->all();
-        }
-
-        return $allIds;
+        return $user->commits()->withTrashed()->whereNotNull('parent_id');
     }
 
     /**
-     * @return array<mixed>
-     */
-    private function repliesWithoutReplies(User $user): array
-    {
-        return $user->commits()
-            ->withTrashed()
-            ->whereDoesntHave('replies', fn (CommitBuilder $replies): CommitBuilder => $replies->withTrashed())
-            ->pluck('id')
-            ->all();
-    }
-
-    /**
-     * @param  array<mixed>  $commitIds
+     * The images of the user's commits and of every reply in the threads they started, which go along with them.
+     *
      * @return array<int, string>
      */
-    private function imagePaths(array $commitIds): array
+    private function imagePaths(User $user): array
     {
         return CommitImage::query()
-            ->whereIn('commit_id', $commitIds)
+            ->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+            ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
             ->get(['path'])
             ->map(fn (CommitImage $image): string => $image->path)
             ->all();

@@ -11,10 +11,12 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\LazyCollection;
 use stdClass;
 
 final readonly class CreateExport
@@ -41,6 +43,7 @@ final readonly class CreateExport
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
+                'timezone' => $user->timezone,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
@@ -70,7 +73,13 @@ final readonly class CreateExport
      */
     private function commits(User $user): Generator
     {
-        foreach ($user->commits()->withTrashed()->with('images')->lazyById(500) as $commit) {
+        $commits = $user->commits()
+            ->withTrashed()
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->with('images:id,commit_id')
+            ->lazyById(500);
+
+        foreach ($commits as $commit) {
             yield [
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
@@ -128,8 +137,11 @@ final readonly class CreateExport
      */
     private function stars(User $user): Generator
     {
-        foreach ($user->starredCommits()->withTrashed()->select('commits.id')->lazyById(500, 'commits.id', 'id') as $commit) {
-            yield $commit->id;
+        /** @var LazyCollection<int, object{commit_id: string}> $stars */
+        $stars = $user->starredCommits()->newPivotQuery()->select('commit_id')->lazyById(500, 'commit_id');
+
+        foreach ($stars as $star) {
+            yield $star->commit_id;
         }
     }
 
@@ -149,7 +161,10 @@ final readonly class CreateExport
      */
     private function usernames(BelongsToMany $users): Generator
     {
-        foreach ($users->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $user) {
+        /** @var LazyCollection<int, object{username: string}> $users */
+        $users = $users->toBase()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id');
+
+        foreach ($users as $user) {
             yield ['username' => $user->username];
         }
     }
@@ -161,16 +176,23 @@ final readonly class CreateExport
      */
     private function notifications(User $user): Generator
     {
-        foreach ($user->notifications()->with('actor')->lazyById(500) as $notification) {
-            $isModeration = in_array($notification->type, [NotificationType::Approved, NotificationType::Rejected], true);
+        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, read_at: string|null, created_at: string}> $notifications */
+        $notifications = $user->notifications()
+            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
+            ->toBase()
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->lazyById(500, 'notifications.id', 'id');
+
+        foreach ($notifications as $notification) {
+            $isModeration = in_array($notification->type, [NotificationType::Approved->value, NotificationType::Rejected->value], true);
 
             yield [
-                'type' => $notification->type->value,
-                'actor' => $isModeration ? null : $notification->actor->username,
+                'type' => $notification->type,
+                'actor' => $isModeration ? null : $notification->actor,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
-                'read_at' => $notification->read_at?->toIso8601String(),
-                'created_at' => $notification->created_at->toIso8601String(),
+                'read_at' => $notification->read_at === null ? null : CarbonImmutable::parse($notification->read_at)->toIso8601String(),
+                'created_at' => CarbonImmutable::parse($notification->created_at)->toIso8601String(),
             ];
         }
     }

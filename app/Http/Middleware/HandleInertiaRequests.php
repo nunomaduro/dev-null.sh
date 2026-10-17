@@ -58,7 +58,8 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            ...$user instanceof User && $showsWhoToFollow ? [
+            // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
+            ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
                     $user,
                     round: max(0, (int) $request->cookie('who_to_follow_round')),

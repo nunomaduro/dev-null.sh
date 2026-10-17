@@ -18,6 +18,7 @@ const actor: User = {
     website: null,
     company: null,
     has_sponsors_listing: false,
+    timezone: null,
     has_github_account: true,
     lane: 0,
     created_at: timestamp,

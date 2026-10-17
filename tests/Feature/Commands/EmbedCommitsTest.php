@@ -20,8 +20,8 @@ it('embeds every commit missing an embedding, in one request', function (): void
         ->expectsOutputToContain('Embedded 2 commits.')
         ->assertSuccessful();
 
-    expect($first->refresh()->embedding)->toBe(embeddingVector(1))
-        ->and($second->refresh()->embedding)->toBe(embeddingVector(2));
+    expect(Commit::query()->whereKey($first->id)->value('embedding'))->toBe(embeddingVector(1))
+        ->and(Commit::query()->whereKey($second->id)->value('embedding'))->toBe(embeddingVector(2));
 
     Http::assertSent(fn (Request $request): bool => $request['input'] === ['First commit', 'Second commit']);
     Http::assertSentCount(1);
@@ -37,7 +37,7 @@ it('leaves commits that already have an embedding alone', function (): void {
         ->expectsOutputToContain('Embedded 1 commits.')
         ->assertSuccessful();
 
-    expect($missing->refresh()->embedding)->toBe(embeddingVector(4));
+    expect(Commit::query()->whereKey($missing->id)->value('embedding'))->toBe(embeddingVector(4));
 
     Http::assertSent(fn (Request $request): bool => $request['input'] === ['Needs one']);
     Http::assertSentCount(1);
@@ -67,7 +67,7 @@ it('embeds every commit again with --all', function (): void {
         ->expectsOutputToContain('Embedded 1 commits.')
         ->assertSuccessful();
 
-    expect($commit->refresh()->embedding)->toBe(embeddingVector(4));
+    expect(Commit::query()->whereKey($commit->id)->value('embedding'))->toBe(embeddingVector(4));
 });
 
 it('leaves deleted commits alone', function (): void {

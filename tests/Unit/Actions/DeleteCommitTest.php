@@ -10,6 +10,7 @@ use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Notification;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -143,3 +144,22 @@ it('keeps report cleanup while applying the undo window to images', function (bo
         Storage::disk()->assertMissing($image->path);
     }
 })->with([false, true]);
+
+it('removes the notifications of a deleted commit and those about its replies and quotes, keeping the rest', function (): void {
+    $commit = Commit::factory()->create();
+    $starred = Notification::factory()->starred()->create(['commit_id' => $commit->id, 'subject_id' => $commit->id]);
+    $replied = Notification::factory()->replied($commit)->create();
+    $quoted = Notification::factory()->quoted()->create();
+    $quoted->commit->quotedCommit()->associate($commit)->save();
+    $mentionedInReply = Notification::factory()->mentioned()->create();
+    $mentionedInReply->commit->parent()->associate($commit)->save();
+    $unrelated = Notification::factory()->replied()->create();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    expect(Notification::query()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$mentionedInReply->id, $unrelated->id])->sort()->values()->all())
+        ->and($starred->fresh())->toBeNull()
+        ->and($replied->fresh())->toBeNull()
+        ->and($quoted->fresh())->toBeNull();
+});

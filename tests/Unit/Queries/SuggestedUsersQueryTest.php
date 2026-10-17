@@ -126,6 +126,19 @@ it('picks popular people from the most followed', function (): void {
         ->each->toBeIn($mostFollowed->modelKeys());
 });
 
+it('picks the 20 most followed among people who have committed', function (): void {
+    $user = User::factory()->create();
+
+    $mostFollowed = User::factory()->count(20)->has(Commit::factory())->create()
+        ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->create()));
+    User::factory()->has(Commit::factory()->pending())->create()->followers()->attach(User::factory()->count(2)->create());
+
+    $query = resolve(SuggestedUsersQuery::class);
+    $suggested = collect(range(0, 6))->flatMap(fn (int $round): array => $query->get($user, round: $round)->pluck('id')->all());
+
+    expect($suggested->unique()->sort()->values()->all())->toBe(collect($mostFollowed->modelKeys())->sort()->values()->all());
+});
+
 it('keeps the same suggestions in the same order during the day', function (): void {
     $user = User::factory()->create();
     vouchedFor($user, 3);

@@ -6,8 +6,8 @@ namespace App\Queries;
 
 use App\Enums\Achievement;
 use App\Enums\UnixRank;
-use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UserAchievementsQuery
@@ -54,19 +54,18 @@ final readonly class UserAchievementsQuery
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
-        /** @var object{total_commits: int|string, has_syntax: int|string|null} $commitStats */
+        // Replies must be to other developers (excluding self-replies), deleted parents included
+        /** @var object{total_commits: int|string, has_syntax: int|string|null, replies: int|string} $commitStats */
         $commitStats = (clone $visibleCommitsQuery)
-            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax")
+            ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join
+                ->on('parents.id', '=', 'commits.parent_id')
+                ->where('parents.user_id', '!=', $user->id))
+            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies")
             ->first();
 
         $commitsCount = (int) ($commitStats->total_commits ?? 0);
         $hasSyntaxCommit = (bool) ($commitStats->has_syntax ?? 0);
-
-        // Replies must be to other developers (excluding self-replies)
-        $repliesCount = (int) (clone $visibleCommitsQuery)
-            ->whereNotNull('parent_id')
-            ->whereIn('parent_id', Commit::query()->withTrashed()->where('user_id', '!=', $user->id)->select('id'))
-            ->count();
+        $repliesCount = (int) ($commitStats->replies ?? 0);
 
         // Stars received on visible commits, excluding self-stars
         $visibleCommitIds = (clone $visibleCommitsQuery)->select('id');

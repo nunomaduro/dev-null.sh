@@ -34,6 +34,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
@@ -814,19 +815,19 @@ function CommitReply({
                         <span aria-hidden className="text-muted-foreground">
                             ·
                         </span>
-                        <Link
-                            href={permalink}
-                            className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
+                        <TimestampTooltip
+                            date={reply.created_at}
+                            author={reply.user}
                         >
-                            <time
-                                dateTime={reply.created_at}
-                                title={new Date(
-                                    reply.created_at,
-                                ).toLocaleString()}
+                            <Link
+                                href={permalink}
+                                className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
-                                {formatRelativeTime(reply.created_at, now)}
-                            </time>
-                        </Link>
+                                <time dateTime={reply.created_at}>
+                                    {formatRelativeTime(reply.created_at, now)}
+                                </time>
+                            </Link>
+                        </TimestampTooltip>
                         {reply.status !== 'approved' && (
                             <span
                                 className={cn(

@@ -17,10 +17,18 @@ final readonly class CreateCommitStar
         //
     }
 
+    /**
+     * Inserted unless already there rather than synced, which would read every star the user has given.
+     */
     public function handle(User $user, Commit $commit): void
     {
         DB::transaction(function () use ($user, $commit): void {
-            $user->starredCommits()->syncWithoutDetaching([$commit->id]);
+            $user->starredCommits()->newPivotStatement()->insertOrIgnore([
+                'user_id' => $user->id,
+                'commit_id' => $commit->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
             $this->createStarNotification->handle($user, $commit);
 

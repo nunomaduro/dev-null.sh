@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 it('keeps id projections lightweight when poll eager loading is disabled', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
@@ -20,6 +21,15 @@ it('keeps id projections lightweight when poll eager loading is disabled', funct
         ->and(DB::getQueryLog())->toHaveCount(1);
 
     DB::disableQueryLog();
+});
+
+it('loads commits with every column but the embedding, which stays stored', function (): void {
+    $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
+
+    expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
+        ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
+        ->and(Commit::query()->whereKey($commit->id)->value('embedding'))->toBe(embeddingVector(0));
 });
 
 it('scopes commits to those visible to a user', function (): void {

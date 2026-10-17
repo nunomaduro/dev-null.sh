@@ -18,7 +18,7 @@ it('embeds the body of a commit', function (): void {
 
     resolve(UpdateCommitEmbedding::class)->handle($commit);
 
-    expect($commit->refresh()->embedding)->toBe(embeddingVector(3));
+    expect(Commit::query()->whereKey($commit->id)->value('embedding'))->toBe(embeddingVector(3));
 
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer sk-test')
         && $request['model'] === 'text-embedding-3-small'
@@ -33,5 +33,5 @@ it('throws, leaving the commit unembedded, when openai returns no embedding', fu
     expect(fn () => resolve(UpdateCommitEmbedding::class)->handle($commit))
         ->toThrow(UnexpectedValueException::class);
 
-    expect($commit->refresh()->embedding)->toBeNull();
+    expect(Commit::query()->whereKey($commit->id)->value('embedding'))->toBeNull();
 });

@@ -141,7 +141,7 @@ it('does not count the authenticated user relations when reloading only commits'
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');

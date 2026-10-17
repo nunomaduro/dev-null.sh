@@ -41,8 +41,8 @@ it('renders the custom color as the chosen lane', function (): void {
             ->where('auth.user.lane', '#1a2b3c'));
 });
 
-it('renders the links to embed the activity graph', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+it('renders the activity graph links with the timezone preference', function (?string $timezone): void {
+    $user = User::factory()->create(['username' => 'octocat', 'timezone' => $timezone]);
 
     $response = $this->actingAs($user)
         ->get(route('user-profile.edit'));
@@ -50,8 +50,9 @@ it('renders the links to embed the activity graph', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('activityGraphUrl', url('/@octocat/graph.svg'))
-            ->where('profileUrl', url('/@octocat')));
-});
+            ->where('profileUrl', url('/@octocat'))
+            ->where('auth.user.timezone', $timezone));
+})->with([null, 'Europe/Budapest']);
 
 it('redirects settings to profile settings', function (): void {
     $user = User::factory()->create();

@@ -16,14 +16,19 @@ final readonly class UserFollowingController
 {
     public function index(ListUserFollowingRequest $request, #[CurrentUser] ?User $currentUser, User $user, PageMetadata $metadata): Response
     {
+        $countedUser = null;
+        $getCountedUser = function () use (&$countedUser, $user): User {
+            return $countedUser ??= $user->loadPublicCounts();
+        };
+
         return Inertia::render('user/connections', [
-            'user' => $user,
+            'user' => fn (): User => $currentUser instanceof User ? $user : $getCountedUser(),
             'type' => 'following',
             'users' => Inertia::scroll(fn () => $user->following()
                 ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $currentUser instanceof User ? $query->whereKey($currentUser->id) : $query->whereRaw('1 = 0')])
                 ->latest('follows.created_at')
                 ->latest('users.id')
                 ->cursorPaginate(30)),
-        ])->withViewData(['preview' => $currentUser instanceof User ? null : $metadata->connections($user->loadPublicCounts(), 'following')]);
+        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), 'following')]);
     }
 }

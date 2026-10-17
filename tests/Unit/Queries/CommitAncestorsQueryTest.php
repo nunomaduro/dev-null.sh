@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use Illuminate\Support\Facades\DB;
 
 it('lists the ancestors of a commit from the root down', function (): void {
     $root = Commit::factory()->create();
@@ -74,4 +75,24 @@ it('limits the ancestors and points the oldest one at its parent', function (): 
     expect($ancestors->pluck('id')->all())->toBe([$commits[2]->id, $commits[3]->id])
         ->and($ancestors->first()->parent->id)->toBe($commits[1]->id)
         ->and($ancestors->first()->parent->relationLoaded('user'))->toBeTrue();
+});
+
+it('loads ancestors in the same number of queries however deep the thread is', function (): void {
+    $viewer = User::factory()->create();
+    $queriesFor = function (int $depth) use ($viewer): int {
+        $commits = [Commit::factory()->create()];
+
+        foreach (range(1, $depth) as $ignored) {
+            $commits[] = Commit::factory()->for(end($commits), 'parent')->create();
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        new CommitAncestorsQuery()->get(end($commits), $viewer, limit: 3);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    expect($queriesFor(6))->toBe($queriesFor(1));
 });

@@ -28,5 +28,5 @@ it('throws when openai is unavailable, so the job is retried', function (): void
     $commit = Commit::factory()->create();
 
     expect(fn () => dispatch_sync(new EmbedCommit($commit)))->toThrow(RequestException::class)
-        ->and($commit->refresh()->embedding)->toBeNull();
+        ->and(Commit::query()->whereKey($commit->id)->value('embedding'))->toBeNull();
 });

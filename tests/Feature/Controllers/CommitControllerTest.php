@@ -6,6 +6,7 @@ use App\Actions\CreateQuoteNotifications;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -646,6 +647,48 @@ it('shows the first 50 replies of a commit with a cursor to the rest', function 
             ->where('replies.data.1.body', 'Reply 1')
             ->where('replies.data.49.body', 'Reply 49')
             ->where('replies.next_cursor', fn (string $cursor): bool => $cursor !== ''));
+});
+
+it('reloads the commit alone without loading its thread', function (): void {
+    $viewer = User::factory()->create();
+    $queries = function (Commit $commit) use ($viewer): int {
+        $this->actingAs($viewer)
+            ->get(route('commit.show', [$commit->user, $commit]))
+            ->assertOk()
+            ->assertInertia(function ($page): void {
+                DB::flushQueryLog();
+                DB::enableQueryLog();
+
+                $page->reloadOnly('commit', fn ($reload) => $reload->missing('replies')->missing('ancestors')->missing('series'));
+
+                DB::disableQueryLog();
+            });
+
+        return count(DB::getQueryLog());
+    };
+    $alone = Commit::factory()->create();
+    $inThread = Commit::factory()->for(Commit::factory()->for(Commit::factory(), 'parent'), 'parent')->create();
+    Commit::factory()->for($inThread, 'parent')->count(3)->create();
+
+    expect($queries($inThread))->toBe($queries($alone));
+});
+
+it('builds the link preview only for full page loads', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    $queries = function (array $headers) use ($commit): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->get(route('commit.show', [$commit->user, $commit]), $headers)->assertOk();
+
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    expect($queries(['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())]))
+        ->toBeLessThan($queries([]));
 });
 
 it('shows own pending commit', function (): void {

@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('renders the onboarding for a new user', function (): void {
     $user = User::factory()->notOnboarded()->create([
@@ -24,6 +26,18 @@ it('renders the onboarding for a new user', function (): void {
             ->where('suggestions', []));
 });
 
+it('leaves who to follow to the pages with a sidebar', function (): void {
+    $user = User::factory()->notOnboarded()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('showsWhoToFollow', true)->missing('suggestedUsers'));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
 it('suggests developers to follow', function (): void {
     $user = User::factory()->notOnboarded()->create();
     $authors = User::factory()->count(6)->has(Commit::factory())->create();
@@ -38,6 +52,24 @@ it('suggests developers to follow', function (): void {
                 ->pluck('id')
                 ->diff($authors->modelKeys())
                 ->isEmpty()));
+});
+
+it('leaves the suggestions out of partial reloads that do not ask for them', function (): void {
+    $user = User::factory()->notOnboarded()->create(['preferred_lane' => 1]);
+    User::factory()->count(6)->has(Commit::factory())->create();
+
+    DB::enableQueryLog();
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'onboarding/show',
+        'X-Inertia-Partial-Data' => 'preferredLane',
+    ])->get(route('onboarding.show'))->assertOk()
+        ->assertJsonPath('props.preferredLane', 1)
+        ->assertJsonMissingPath('props.suggestions');
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toBeEmpty();
 });
 
 it('is not found once the user has onboarded', function (): void {
