@@ -5,13 +5,14 @@ import {
     pickImages,
     revokeObjectUrls,
 } from '@/components/commit-image-picker';
+import { useSecretScan } from '@/hooks/use-secret-scan';
 import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
     readStoredImages,
     writeStoredImages,
 } from '@/lib/image-storage';
-import { stashableBody } from '@/lib/sensitive-text';
+import { loadSecretScan, stashableBody } from '@/lib/sensitive-text';
 import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
 export type UseStashReturn = {
@@ -101,10 +102,24 @@ const subscribe = (callback: () => void) => {
     return () => listeners.delete(callback);
 };
 
+/**
+ * Drafts wait in memory until the secret scanner can check them, and are written once it has loaded.
+ */
 const flush = (): void => {
     clearTimeout(timeout);
-    pending.forEach((body, key) => writeStorage(key, stashableBody(body)));
-    pending.clear();
+    pending.forEach((body, key) => {
+        const stashable = stashableBody(body);
+
+        if (stashable !== null) {
+            writeStorage(key, stashable);
+            pending.delete(key);
+        }
+    });
+
+    if (pending.size > 0) {
+        void loadSecretScan().then(flush);
+    }
+
     notify();
 };
 
@@ -210,12 +225,13 @@ export function useStash(userId: string, name: string): UseStashReturn {
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => body !== '' || draftImages.length > 0,
     );
+    const isSecretScanLoaded = useSecretScan();
 
     useEffect(() => {
-        if (body !== '' && stashableBody(body) === '') {
+        if (isSecretScanLoaded && body !== '' && stashableBody(body) === '') {
             discardBody(key);
         }
-    }, [body, key]);
+    }, [body, key, isSecretScanLoaded]);
 
     const updateBody = (next: string): void => {
         setBody(next);
