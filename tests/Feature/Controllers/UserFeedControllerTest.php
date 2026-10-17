@@ -173,8 +173,32 @@ it('escapes commits and profiles into valid xml', function (): void {
         ->and((string) $feed->entry[0]->content)->toBe("<script>alert('x')</script> & ]]> bell");
 });
 
+it('updates the feed timestamp when the profile changes', function (): void {
+    $user = User::factory()->create([
+        'username' => 'octocat',
+        'created_at' => now()->subWeek(),
+        'updated_at' => now()->subWeek(),
+    ]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+
+    $before = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect((string) $before->updated)->toBe(now()->subDay()->toAtomString());
+
+    $user->update(['bio' => 'Updated profile']);
+
+    $after = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect((string) $after->updated)->toBe(now()->toAtomString())
+        ->and((string) $after->subtitle)->toBe('Updated profile');
+});
+
 it('serves an empty feed for users without public commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'created_at' => now()->subYear()]);
+    $user = User::factory()->create([
+        'username' => 'octocat',
+        'created_at' => now()->subYear(),
+        'updated_at' => now()->subYear(),
+    ]);
 
     Commit::factory()->for($user)->pending()->create();
 

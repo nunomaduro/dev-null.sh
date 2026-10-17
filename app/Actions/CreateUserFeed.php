@@ -40,7 +40,8 @@ final readonly class CreateUserFeed
             $xml->writeElement('subtitle', $this->text($user->bio));
         }
 
-        $xml->writeElement('updated', ($commits->first()->created_at ?? $user->created_at)->toAtomString());
+        $lastUpdatedAt = $commits->first()->created_at ?? $user->created_at;
+        $xml->writeElement('updated', $lastUpdatedAt->max($user->updated_at)->toAtomString());
         $this->link($xml, 'self', route('user-feed.show', $user), 'application/atom+xml');
         $this->link($xml, 'alternate', route('user.show', $user), 'text/html');
 
