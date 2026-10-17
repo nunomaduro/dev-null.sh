@@ -40,6 +40,10 @@ final readonly class CommitBodies
      */
     public function normalize(string $body): string
     {
+        if (! str_contains($body, "\r") && mb_substr_count($body, "\n") < 3) {
+            return $body;
+        }
+
         return $this->codeSpans->mapProse(str_replace("\r\n", "\n", $body), static fn (string $prose): string => (string) preg_replace('/(?:[ \t]*\n){3,}/', "\n\n", $prose));
     }
 
@@ -50,11 +54,20 @@ final readonly class CommitBodies
      */
     public function excerpt(string $body): ?string
     {
-        $body = str_replace("\r\n", "\n", $body);
+        if (str_contains($body, "\r")) {
+            $body = str_replace("\r\n", "\n", $body);
+        }
+
         $limit = $this->limit($body);
 
         if ($limit === null) {
             return null;
+        }
+
+        if (! str_contains($body, '`')) {
+            $excerpt = mb_rtrim($this->cutProse($body, $limit, true));
+
+            return $excerpt.'…';
         }
 
         $excerpt = '';

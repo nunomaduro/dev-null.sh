@@ -38,6 +38,7 @@ it('ignores what only looks like a mention', function (string $text): void {
     'trailing hyphen' => ['@nuno-'],
     'double at' => ['@@nuno'],
     'too long' => ['@'.str_repeat('a', 40)],
+    'no at symbol' => ['plain text without any mention'],
 ]);
 
 it('allows usernames of up to 39 characters', function (): void {

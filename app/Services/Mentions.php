@@ -22,6 +22,10 @@ final readonly class Mentions
      */
     public function usernames(string $text): array
     {
+        if (! str_contains($text, '@')) {
+            return [];
+        }
+
         preg_match_all(
             '/(?<![\p{L}\p{N}_.\/@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@\/-]|\.[A-Za-z0-9])/u',
             $this->codeSpans->withoutCode($text),

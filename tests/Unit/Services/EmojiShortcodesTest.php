@@ -46,6 +46,13 @@ it('does not modify text without shortcodes', function (): void {
         ->toBe('plain text with a url https://example.com');
 });
 
+it('returns immediately when text has no colons', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace('plain text without any colons'))
+        ->toBe('plain text without any colons');
+});
+
 it('leaves shortcodes in code untouched', function (): void {
     $emoji = resolve(EmojiShortcodes::class);
 
