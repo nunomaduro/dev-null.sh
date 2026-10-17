@@ -28,7 +28,7 @@ final readonly class SignedCommits
     }
 
     /**
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, body: string, proof: array{payload: string, signature: string, public_key: string, fingerprint: string}}
      */
     public function verify(string $payload, string $signature): array
     {
@@ -69,6 +69,13 @@ final readonly class SignedCommits
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
+            // Built only after cryptographic verification and GitHub key ownership checks.
+            'proof' => [
+                'payload' => $payload,
+                'signature' => $signature,
+                'public_key' => $sshSignature->publicKey->toOpenSsh(),
+                'fingerprint' => $sshSignature->publicKey->fingerprint(),
+            ],
         ];
     }
 

@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight, ShieldCheck, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -238,6 +238,21 @@ export function CommitCard({
                                     >
                                         {commit.status}
                                     </span>
+                                )}
+
+                                {commit.ssh_signed && commit.status === 'approved' && (
+                                    <a
+                                        href={`/api/v1/commits/${commit.id}/proof`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                        title="SSH-signed using a GitHub-linked key. Open the portable proof."
+                                        aria-label="View independently verifiable SSH signature receipt"
+                                        data-test="ssh-signed-proof"
+                                    >
+                                        <ShieldCheck className="size-3.5" aria-hidden />
+                                        <span className="hidden lg:inline">SSH-signed</span>
+                                    </a>
                                 )}
 
                                 <span className="relative ml-auto flex shrink-0 items-center self-center">

@@ -22,6 +22,7 @@ final class CommitResource extends JsonResource
             'id' => $this->id,
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
+            'ssh_signed' => $this->signer_fingerprint !== null,
             'parent_id' => $this->parent?->id,
             'html_url' => route('commit.show', [$this->user, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),

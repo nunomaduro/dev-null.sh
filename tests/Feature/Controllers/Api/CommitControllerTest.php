@@ -26,6 +26,7 @@ it('shows an approved commit to anyone', function (): void {
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
+            'ssh_signed' => false,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),

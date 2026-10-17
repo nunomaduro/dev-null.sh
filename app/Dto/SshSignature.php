@@ -55,6 +55,26 @@ final readonly class SshSignature
         return new self(SshPublicKey::fromBlob($publicKey), $namespace, $reserved, $hashAlgorithm, $bytes);
     }
 
+    /**
+     * Return a standard OpenSSH-armored signature for independent verification.
+     */
+    public function toArmored(): string
+    {
+        $binary = self::Magic.Strings::packSSH2(
+            'Nsssss',
+            1,
+            $this->publicKey->blob,
+            $this->namespace,
+            $this->reserved,
+            $this->hashAlgorithm,
+            $this->signature,
+        );
+
+        return "-----BEGIN SSH SIGNATURE-----\n"
+            .chunk_split(base64_encode($binary), 70, "\n")
+            ."-----END SSH SIGNATURE-----\n";
+    }
+
     public function verify(string $message, string $namespace): bool
     {
         if ($this->namespace !== $namespace) {

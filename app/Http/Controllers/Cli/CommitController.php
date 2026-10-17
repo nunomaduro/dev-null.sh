@@ -15,7 +15,15 @@ final readonly class CommitController
 {
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
+        /** @var array{payload: string, signature: string, public_key: string, fingerprint: string} $verifiedProof */
+        $verifiedProof = $request->attributes->get('verified_ssh_proof');
+
+        $commit = $action->handle(
+            $user,
+            $request->string('body')->value(),
+            $request->parent(),
+            signedProof: $verifiedProof,
+        );
 
         $url = route('commit.show', [$user, $commit]);
 

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Verify a saved /dev/null SSHSIG receipt without asking /dev/null or GitHub.
+set -euo pipefail
+umask 077
+
+if (( $# != 1 )); then
+    printf 'Usage: %s RECEIPT.json-or-URL\n' "$0" >&2
+    exit 2
+fi
+
+for command in jq openssl ssh-keygen; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+        printf 'Required command is missing: %s\n' "$command" >&2
+        exit 2
+    fi
+done
+
+temp_dir="$(mktemp -d)"
+trap 'rm -rf "$temp_dir"' EXIT
+
+if [[ -f "$1" ]]; then
+    cp -- "$1" "$temp_dir/receipt.json"
+else
+    if ! command -v curl >/dev/null 2>&1; then
+        printf 'curl is required for remote receipts\n' >&2
+        exit 2
+    fi
+
+    curl --fail --silent --show-error --location "$1" \
+        --output "$temp_dir/receipt.json"
+fi
+
+if [[ "$(jq -er '.namespace' "$temp_dir/receipt.json")" != 'devnull-commit' ]]; then
+    printf 'Unexpected SSH signature namespace\n' >&2
+    exit 1
+fi
+
+jq -er '.payload_base64' "$temp_dir/receipt.json" |
+    openssl base64 -d -A > "$temp_dir/payload.bin"
+
+jq -er '.ssh_signature' "$temp_dir/receipt.json" > "$temp_dir/signature"
+key="$(jq -er '.public_key' "$temp_dir/receipt.json")"
+printf 'devnull %s\n' "$key" > "$temp_dir/allowed_signers"
+
+ssh-keygen -Y verify \
+    -n devnull-commit \
+    -I devnull \
+    -f "$temp_dir/allowed_signers" \
+    -s "$temp_dir/signature" < "$temp_dir/payload.bin"
+
+printf 'Signature valid for the public key in this receipt.\n'
+printf 'GitHub ownership at publication is an assertion by /dev/null, not proven by the SSH signature.\n'

@@ -29,6 +29,13 @@ final readonly class DeleteUser
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
+            // Erase portable signatures before anonymizing replies into tombstones.
+            // The proofs contain the author's exact signed message and public key.
+            DB::table('commit_signatures')
+                ->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+                ->delete();
+            $user->commits()->withTrashed()->update(['signer_fingerprint' => null]);
+
             $topLevelIds = $user->commits()->withTrashed()->topLevel()->pluck('id')->all();
             $replyIds = $user->commits()->withTrashed()->whereNotNull('parent_id')->pluck('id')->all();
 

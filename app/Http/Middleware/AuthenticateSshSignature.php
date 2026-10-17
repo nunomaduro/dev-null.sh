@@ -37,6 +37,9 @@ final readonly class AuthenticateSshSignature
 
         Auth::setUser($commit['user']);
 
+        // Attributes are server-owned. Request input cannot forge this verified proof.
+        $request->attributes->set('verified_ssh_proof', $commit['proof']);
+
         $request->merge([
             'body' => $commit['body'],
             'reply_to' => $commit['reply_to'],

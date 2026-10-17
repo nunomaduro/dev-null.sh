@@ -14,6 +14,18 @@ it('verifies signatures made by ssh-keygen', function (string $key): void {
         ->and($signature->verify(sshFixture('message'), 'devnull-commit'))->toBeTrue();
 })->with(['ed25519', 'rsa']);
 
+it('re-encodes OpenSSH fixtures as portable armored receipts', function (string $key): void {
+    $signature = SshSignature::parse(sshFixture("{$key}.sig"));
+    $armored = $signature->toArmored();
+    $roundTrip = SshSignature::parse($armored);
+
+    expect($armored)->toStartWith('-----BEGIN SSH SIGNATURE-----')
+        ->toContain('-----END SSH SIGNATURE-----')
+        ->and($roundTrip->publicKey->fingerprint())->toBe($signature->publicKey->fingerprint())
+        ->and($roundTrip->verify(sshFixture('message'), 'devnull-commit'))->toBeTrue()
+        ->and($roundTrip->verify('Tampered payload', 'devnull-commit'))->toBeFalse();
+})->with(['ed25519', 'rsa']);
+
 it('rejects a tampered message', function (string $key): void {
     $signature = SshSignature::parse(sshFixture("{$key}.sig"));
 

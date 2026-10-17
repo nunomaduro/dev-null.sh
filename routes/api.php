@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
+use App\Http\Controllers\Api\CommitProofController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Cli\CommitController;
@@ -25,6 +26,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->name('api-user.show');
     Route::get('users/{user:username}/commits', [UserCommitController::class, 'index'])
         ->name('api-user-commit.index');
+    Route::get('commits/{commit}/proof', [CommitProofController::class, 'show'])
+        ->name('api-commit-proof.show');
     Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
         ->name('api-commit.show');
 });

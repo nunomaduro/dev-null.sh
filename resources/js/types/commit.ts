@@ -56,6 +56,7 @@ export type Commit = {
     parent_id: string | null;
     hot_score: number;
     body: string;
+    ssh_signed?: boolean;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     status: CommitStatus;

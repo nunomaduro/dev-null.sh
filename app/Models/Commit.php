@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $root_id
  * @property-read float $hot_score
  * @property-read string $body
+ * @property-read string|null $signer_fingerprint
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
@@ -58,6 +59,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_decision',
     'ai_categories',
     'embedding',
+    'signer_fingerprint',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -101,6 +103,7 @@ final class Commit extends Model
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
+            'signer_fingerprint' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
@@ -127,7 +130,7 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body)];
+        return [...parent::toArray(), 'ssh_signed' => $this->signer_fingerprint !== null, ...resolve(CommitBodies::class)->segments($this->body)];
     }
 
     /**

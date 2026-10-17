@@ -22,7 +22,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, commit_signatures: Generator<int, array{commit_id: string, payload: string, signature: string, public_key: string, fingerprint: string}>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -50,6 +50,7 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
+            'commit_signatures' => $this->commitSignatures($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -81,6 +82,36 @@ final readonly class CreateExport
                 'created_at' => $commit->created_at->toIso8601String(),
                 'updated_at' => $commit->updated_at->toIso8601String(),
                 'deleted_at' => $commit->deleted_at?->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * Export the original signed bytes for the user's own CLI submissions.
+     *
+     * @return Generator<int, array{commit_id: string, payload: string, signature: string, public_key: string, fingerprint: string}>
+     */
+    private function commitSignatures(User $user): Generator
+    {
+        $rows = DB::table('commit_signatures')
+            ->join('commits', 'commits.id', '=', 'commit_signatures.commit_id')
+            ->where('commits.user_id', $user->id)
+            ->orderBy('commit_signatures.commit_id')
+            ->cursor([
+                'commit_signatures.commit_id',
+                'commit_signatures.payload',
+                'commit_signatures.signature',
+                'commit_signatures.public_key',
+                'commit_signatures.fingerprint',
+            ]);
+
+        foreach ($rows as $row) {
+            yield [
+                'commit_id' => (string) $row->commit_id,
+                'payload' => (string) $row->payload,
+                'signature' => (string) $row->signature,
+                'public_key' => (string) $row->public_key,
+                'fingerprint' => (string) $row->fingerprint,
             ];
         }
     }
