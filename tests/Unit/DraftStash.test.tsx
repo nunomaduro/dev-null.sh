@@ -87,6 +87,9 @@ vi.doMock('../../resources/js/lib/image-storage', () => ({
 
 const { clearStashes, useHasStash, useStash } =
     await import('../../resources/js/hooks/use-stash');
+const { loadSecretScan } =
+    await import('../../resources/js/lib/sensitive-text');
+await loadSecretScan();
 
 test('restores draft images, preserves them through body edits, and drops the complete draft', async () => {
     const windowBefore = globalThis.window;

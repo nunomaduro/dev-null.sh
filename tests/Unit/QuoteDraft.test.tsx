@@ -21,6 +21,7 @@ const draft = {
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: () => {},
     useMemo: (factory: () => unknown) => factory(),
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
         snapshot(),
@@ -44,6 +45,9 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 }));
 
 const { Form } = await import('@inertiajs/react');
+const { loadSecretScan } =
+    await import('../../resources/js/lib/sensitive-text');
+await loadSecretScan();
 const { CommitQuoteButton } =
     await import('../../resources/js/components/commit-quote-button');
 const { ImagePickerButton, ImagePickerPreviews } =

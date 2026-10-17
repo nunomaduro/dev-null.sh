@@ -13,6 +13,9 @@ import {
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
+import { loadSecretScan } from '../../resources/js/lib/sensitive-text';
+
+await loadSecretScan();
 
 function renderPage(
     content: ReactElement,

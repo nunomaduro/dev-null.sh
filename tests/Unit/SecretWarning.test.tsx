@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { createElement, useState } from 'react';
 import { renderToString } from 'react-dom/server';
 import { useSecretWarning } from '../../resources/js/hooks/use-secret-warning';
+import { loadSecretScan } from '../../resources/js/lib/sensitive-text';
 
 const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 type Warning = ReturnType<typeof useSecretWarning>;
@@ -30,6 +31,17 @@ function run(steps: Step[]): void {
 
     renderToString(createElement(Scenario));
 }
+
+void test('holds back a submission until the scanner has loaded', async () => {
+    run([
+        {
+            body: 'Shipped before the scanner arrived',
+            check: (warning) => assert.equal(warning.beforeSubmit(), false),
+        },
+    ]);
+
+    await loadSecretScan();
+});
 
 void test('allows ordinary text without asking for confirmation', () => {
     run([

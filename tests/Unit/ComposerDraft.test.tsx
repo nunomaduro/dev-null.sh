@@ -65,6 +65,9 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
+const { loadSecretScan } =
+    await import('../../resources/js/lib/sensitive-text');
+await loadSecretScan();
 const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { ComposerPreviewBody, PreviewToggle } =
