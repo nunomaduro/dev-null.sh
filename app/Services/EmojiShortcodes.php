@@ -13,9 +13,12 @@ final readonly class EmojiShortcodes
      */
     private array $map;
 
+    private string $pattern;
+
     public function __construct(private CodeSpans $codeSpans)
     {
         $this->map = $this->load();
+        $this->pattern = $this->pattern();
     }
 
     /**
@@ -24,11 +27,13 @@ final readonly class EmojiShortcodes
      */
     public function replace(string $text): string
     {
-        $pattern = $this->pattern();
+        if (! str_contains($text, ':')) {
+            return $text;
+        }
 
         return $this->codeSpans->mapProse(
             $text,
-            fn (string $prose): string => (string) preg_replace_callback($pattern, $this->replaceMatch(...), $prose),
+            fn (string $prose): string => (string) preg_replace_callback($this->pattern, $this->replaceMatch(...), $prose),
         );
     }
 

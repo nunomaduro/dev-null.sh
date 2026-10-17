@@ -31,6 +31,10 @@ final readonly class CodeSpans
      */
     public function split(string $text): array
     {
+        if (! str_contains($text, '`')) {
+            return [$text];
+        }
+
         return preg_split(self::PATTERN, $text, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
     }
 
@@ -41,6 +45,10 @@ final readonly class CodeSpans
      */
     public function mapProse(string $text, callable $callback): string
     {
+        if (! str_contains($text, '`')) {
+            return $callback($text);
+        }
+
         $parts = $this->split($text);
 
         foreach ($parts as $index => $part) {
@@ -57,6 +65,10 @@ final readonly class CodeSpans
      */
     public function withoutCode(string $text): string
     {
+        if (! str_contains($text, '`')) {
+            return $text;
+        }
+
         return implode("\n", array_filter($this->split($text), static fn (int $index): bool => $index % 2 === 0, ARRAY_FILTER_USE_KEY));
     }
 
@@ -68,6 +80,10 @@ final readonly class CodeSpans
      */
     public function highlight(string $text): array
     {
+        if (! str_contains($text, '`')) {
+            return $text === '' ? [] : [['type' => 'text', 'text' => $text]];
+        }
+
         $parts = $this->split($text);
         $segments = [];
 
@@ -79,11 +95,19 @@ final readonly class CodeSpans
             }
 
             if ($this->isBlock($parts[$index - 1] ?? null)) {
-                $part = (string) preg_replace('/\A\r?\n/', '', $part);
+                if (str_starts_with($part, "\r\n")) {
+                    $part = mb_substr($part, 2);
+                } elseif (str_starts_with($part, "\n")) {
+                    $part = mb_substr($part, 1);
+                }
             }
 
             if ($this->isBlock($parts[$index + 1] ?? null)) {
-                $part = (string) preg_replace('/\r?\n\z/', '', $part);
+                if (str_ends_with($part, "\r\n")) {
+                    $part = mb_substr($part, 0, -2);
+                } elseif (str_ends_with($part, "\n")) {
+                    $part = mb_substr($part, 0, -1);
+                }
             }
 
             if ($part !== '') {

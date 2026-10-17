@@ -54,6 +54,21 @@ it('splits the excerpt of a body too long to show whole in a list into segments 
         ]);
 });
 
+it('recomputes segments when the body changes', function (): void {
+    $commit = Commit::factory()->create(['body' => 'first version']);
+
+    expect($commit->toArray()['body_segments'])->toBe([
+        ['type' => 'text', 'text' => 'first version'],
+    ]);
+
+    $commit->body = 'second `version`';
+
+    expect($commit->toArray()['body_segments'])->toBe([
+        ['type' => 'text', 'text' => 'second '],
+        ['type' => 'code', 'code' => 'version'],
+    ]);
+});
+
 it('belongs to a user', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
