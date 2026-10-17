@@ -10,8 +10,19 @@ const shortcodeNames = Object.keys(shortcodeEmoji).sort(
     (left, right) => right.length - left.length,
 );
 
+const shortcodeNamesPattern = shortcodeNames.map(escapeRegExp).join('|');
+
 const shortcodePattern = new RegExp(
-    `:(${shortcodeNames.map(escapeRegExp).join('|')}):?(?![A-Za-z0-9_])`,
+    `(?<![A-Za-z0-9_]):(${shortcodeNamesPattern}):?(?![A-Za-z0-9_])`,
+    'g',
+);
+
+const caretMarker = '\u0000';
+
+// While typing, a shortcode without its closing colon that ends at the caret is still being written (:a on its
+// way to :apple), so it waits for the closing colon or for the caret to move past it.
+const typedShortcodePattern = new RegExp(
+    `(?<![A-Za-z0-9_]):(${shortcodeNamesPattern})(?::(?![A-Za-z0-9_])|(?![A-Za-z0-9_${caretMarker}]))`,
     'g',
 );
 
@@ -26,11 +37,18 @@ export function emojifyInput(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
-    const emojifyTyped = (typed: string) => mapTypedProse(typed, emojify);
+    const marked = text.slice(0, caret) + caretMarker + text.slice(caret);
+    const emojified = mapTypedProse(marked, (prose) =>
+        prose.replace(
+            typedShortcodePattern,
+            (_, name: string) => shortcodeEmoji[name],
+        ),
+    );
+    const markerIndex = emojified.indexOf(caretMarker);
 
     return {
-        text: emojifyTyped(text),
-        caret: emojifyTyped(text.slice(0, caret)).length,
+        text: emojified.replace(caretMarker, ''),
+        caret: markerIndex,
     };
 }
 
@@ -39,8 +57,14 @@ export type EmojiSuggestion = {
     emoji: string;
 };
 
+const trailingShortcodePattern = /(?<![A-Za-z0-9_]):([A-Za-z0-9_+-]*)$/;
+
 export function suggestEmoji(text: string): EmojiSuggestion | null {
-    const match = /:([A-Za-z0-9_+-]*)$/.exec(text);
+    let typedProse = '';
+
+    mapTypedProse(text, (prose) => (typedProse = prose));
+
+    const match = trailingShortcodePattern.exec(typedProse);
 
     if (match === null || match[1] === '') {
         return null;
@@ -69,5 +93,5 @@ export function completeEmoji(text: string): string | null {
         return null;
     }
 
-    return text.replace(/:([A-Za-z0-9_+-]*)$/, suggestion.emoji);
+    return text.replace(trailingShortcodePattern, suggestion.emoji);
 }

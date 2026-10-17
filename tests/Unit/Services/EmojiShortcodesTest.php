@@ -18,6 +18,13 @@ it('leaves a shortcode inside a longer word untouched', function (): void {
         ->toBe(':hearted and :likewise stay put');
 });
 
+it('leaves a shortcode glued to the word before it untouched', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace('status:ok and ratio 1:100 stay put, but (:fire) and a :fire do not'))
+        ->toBe('status:ok and ratio 1:100 stay put, but (🔥) and a 🔥 do not');
+});
+
 it('replaces shortcodes next to punctuation and the end of the text', function (): void {
     $emoji = resolve(EmojiShortcodes::class);
 
