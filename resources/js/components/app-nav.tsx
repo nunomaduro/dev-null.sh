@@ -273,6 +273,18 @@ export function AppNav({
                         {keys.combo(keys.mod, 'K')}
                     </kbd>
                 </button>
+                <a
+                    href="https://github.com/nunomaduro/dev-null.sh"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Source code (opens in a new tab)"
+                    title="Source code"
+                    className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    data-test="source-code-link"
+                >
+                    <GitHubIcon className="size-5" />
+                    <span className="sr-only lg:not-sr-only">Source code</span>
+                </a>
             </nav>
 
             <Button
