@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# The devnull GitHub Action: commits DEVNULL_BODY (replying to DEVNULL_REPLY_TO, if any) with
-# resources/scripts/commit.sh, the `curl -fsSL https://dev-null.sh/commit | bash` script, so it is
-# signed exactly like a commit from a terminal.
+# The devnull GitHub Action: commits DEVNULL_BODY (replying to DEVNULL_REPLY_TO and attaching the
+# DEVNULL_IMAGES, if any) with resources/scripts/commit.sh, the
+# `curl -fsSL https://dev-null.sh/commit | bash` script, so it is signed exactly like a commit
+# from a terminal.
 #
 # The private key in DEVNULL_SSH_KEY never touches the disk: it goes straight into an SSH agent
 # started for this commit and stopped right after. The script runs with an empty HOME, so that key
@@ -27,10 +28,17 @@ main() {
     || fail "Could not load the ssh-key input: it must be a private Ed25519 or RSA key without a passphrase."
   unset DEVNULL_SSH_KEY
 
-  local arguments=("$DEVNULL_BODY")
+  local arguments=()
   if [ -n "${DEVNULL_REPLY_TO:-}" ]; then
-    arguments=(--reply "$DEVNULL_REPLY_TO" "$DEVNULL_BODY")
+    arguments+=(--reply "$DEVNULL_REPLY_TO")
   fi
+
+  local image
+  while IFS=$' \t' read -r image; do
+    [ -n "$image" ] && arguments+=(--image "$image")
+  done <<< "$(printf '%s' "${DEVNULL_IMAGES:-}" | tr -d '\r')"
+
+  arguments+=(-- "$DEVNULL_BODY")
 
   local script output
   script="$(dirname -- "${BASH_SOURCE[0]}")/../../../resources/scripts/commit.sh"

@@ -36,6 +36,76 @@ it('verifies a signed reply', function (): void {
         ->and($commit['body'])->toBe('Agreed!');
 });
 
+it('verifies a signed commit with images', function (): void {
+    $hashes = [hash('sha256', 'first image'), hash('sha256', 'second image')];
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, "Shipped!\n\nWith pictures.", imageHashes: $hashes);
+
+    $commit = resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => $hashes);
+
+    expect($commit['user']->is($this->user))->toBeTrue()
+        ->and($commit['reply_to'])->toBeNull()
+        ->and($commit['body'])->toBe("Shipped!\n\nWith pictures.");
+});
+
+it('rejects images that do not match the signed payload', function (): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'signed image')]);
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => [hash('sha256', 'tampered image')]))
+        ->toThrow(InvalidArgumentException::class, 'The attached images do not match the signed payload.');
+});
+
+it('rejects malformed image hashes without hashing the images', function (string $hashes): void {
+    $payload = now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\n{$hashes}\nShipped!";
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify(
+        $payload,
+        $this->keyPair->sign($payload, SignedCommits::ImagesNamespace),
+        fn (): array => throw new RuntimeException('The images were hashed.'),
+    ))->toThrow(InvalidArgumentException::class, 'Malformed payload.');
+})->with([
+    'no hash' => '',
+    'not a hash' => 'not-a-hash',
+    'uppercase' => mb_strtoupper(hash('sha256', 'image')),
+    'more than 3' => implode(',', array_fill(0, 4, hash('sha256', 'image'))),
+]);
+
+it('does not hash the images of a key that is not on the github account of a user', function (): void {
+    $keyPair = SshKeyPair::generate();
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($keyPair, 'Shipped!', imageHashes: [hash('sha256', 'image')]);
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => throw new RuntimeException('The images were hashed.')))
+        ->toThrow(InvalidArgumentException::class, "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.");
+});
+
+it('does not hash the images of a replayed signature', function (): void {
+    $hashes = [hash('sha256', 'image')];
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: $hashes);
+
+    $signedCommits = resolve(SignedCommits::class);
+
+    $signedCommits->verify($payload, $signature, fn (): array => $hashes);
+
+    expect(fn (): array => $signedCommits->verify($payload, $signature, fn (): array => throw new RuntimeException('The images were hashed.')))
+        ->toThrow(InvalidArgumentException::class, 'This signature was already used.');
+});
+
+it('rejects images attached to a commit signed without them', function (): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!');
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => [hash('sha256', 'unsigned image')]))
+        ->toThrow(InvalidArgumentException::class, 'Invalid signature.');
+});
+
+it('rejects a commit with images replayed without them', function (): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'stripped image')]);
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature))
+        ->toThrow(InvalidArgumentException::class, 'Invalid signature.');
+});
+
 it('rejects an invalid signature', function (): void {
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'It was DNS.');
 

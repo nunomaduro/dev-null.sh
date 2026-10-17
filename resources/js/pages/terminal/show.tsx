@@ -36,6 +36,11 @@ const inputs = [
         name: 'reply-to',
         description: 'Optional. The hash or link of a commit to reply to.',
     },
+    {
+        name: 'images',
+        description:
+            'Optional. Paths of JPEG, PNG, GIF or WebP files to attach, one per line, up to 3.',
+    },
 ];
 
 export default function Show({ url }: { url: string }) {
@@ -57,6 +62,10 @@ export default function Show({ url }: { url: string }) {
                     <CopyableCode
                         label="reply command"
                         code={`curl -fsSL ${url}/commit | bash -s -- --reply 0be0130 'Agreed!'`}
+                    />
+                    <CopyableCode
+                        label="image command"
+                        code={`curl -fsSL ${url}/commit | bash -s -- --image shipped.png 'Shipped!'`}
                     />
                 </div>
             </section>

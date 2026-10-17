@@ -38,8 +38,9 @@ beforeEach(function (): void {
             while [ $# -gt 0 ]; do
               case "$1" in
                 --output) output="$2"; shift 2 ;;
-                --proto | --max-time | --header | --write-out) shift 2 ;;
+                --proto | --max-time | --speed-limit | --speed-time | --header | --write-out) shift 2 ;;
                 --data-binary) cp "${2#@}" "$SANDBOX/sent-$(basename "${2#@}")"; shift 2 ;;
+                --form) case "$2" in "images[]=@"*) cp "${2#images[]=@}" "$SANDBOX/sent-${2#images[]=@}" ;; esac; shift 2 ;;
                 -*) shift ;;
                 *) url="$1"; shift ;;
               esac
@@ -51,7 +52,9 @@ beforeEach(function (): void {
             BASH,
         'ssh-keygen' => <<<'BASH'
             echo "ssh-keygen $*" >> "$SANDBOX/calls.log"
+            [ -z "${SIGN_FAILS:-}" ] || exit 1
             for file; do :; done
+            cp "$file" "$SANDBOX/signed"
             printf '%s\n' '-----BEGIN SSH SIGNATURE-----' "${SIGNATURE:-c2lnbmF0dXJl}" '-----END SSH SIGNATURE-----' > "$file.sig"
             BASH,
         'ssh-add' => <<<'BASH'
@@ -100,7 +103,9 @@ it('commits with a key from ~/.ssh', function (): void {
         ->and($result->output())->toBe("Committed.\n")
         ->and(($this->calls)())->toContain("ssh-keygen -Y sign -n devnull-commit -f {$this->sandbox}/home/.ssh/id_ed25519 ")
         ->and(File::get("{$this->sandbox}/sent-candidates"))->toBe($this->publicKey->toOpenSsh()."\n")
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nIt was DNS\.$/');
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nIt was DNS\.$/')
+        ->and(mb_substr_count(($this->calls)(), '--header Content-Type: text/plain; charset=utf-8'))->toBe(2)
+        ->and(($this->calls)())->toContain('--header Content-Type: text/plain; charset=utf-8 --header X-SSH-Signature: ');
 });
 
 it('replies to a commit', function (): void {
@@ -115,6 +120,14 @@ it('requires a commit to reply to', function (): void {
 
     expect($result->exitCode())->toBe(1)
         ->and($result->errorOutput())->toBe('devnull: Usage: curl -fsSL '.url('/')."/commit | bash -s -- --reply <commit hash or link> 'Your reply'\n")
+        ->and(($this->calls)())->toBe('');
+});
+
+it('replies to one commit only', function (): void {
+    $result = ($this->runScript)($this->script, ['--reply', '0be0130', '--reply', '1ce1241', 'Agreed!']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --reply can only be given once.\n")
         ->and(($this->calls)())->toBe('');
 });
 
@@ -154,6 +167,101 @@ it('cleans up when it fails', function (): void {
     expect($result->exitCode())->toBe(1)
         ->and(File::directories("{$this->sandbox}/tmp"))->toBe([])
         ->and(($this->filesIn)('tmp'))->toBe(['keep-me.txt']);
+});
+
+it('commits with images', function (): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+    File::put("{$this->sandbox}/home/a b,c;d\"e.png", 'second image');
+
+    $result = ($this->runScript)($this->script, ['--reply', '0be0130', '--image', "{$this->sandbox}/home/first.png", '--image', "{$this->sandbox}/home/a b,c;d\"e.png", 'Shipped!']);
+
+    [, , $replyTo, $hashes, $message] = explode("\n", File::get("{$this->sandbox}/signed"), 5);
+
+    expect($result->exitCode())->toBe(0)
+        ->and($result->output())->toBe("Committed.\n")
+        ->and($replyTo)->toBe('0be0130')
+        ->and($hashes)->toBe(hash('sha256', 'first image').','.hash('sha256', 'second image'))
+        ->and($message)->toBe('Shipped!')
+        ->and(File::get("{$this->sandbox}/sent-image-1"))->toBe('first image')
+        ->and(File::get("{$this->sandbox}/sent-image-2"))->toBe('second image')
+        ->and(($this->calls)())->toContain('-n devnull-commit-images')
+        ->toContain('--max-time 600 --speed-limit 1024 --speed-time 60 ')
+        ->toContain('--form payload=@commit --form images[]=@image-1 --form images[]=@image-2')
+        ->and(mb_substr_count(($this->calls)(), 'Content-Type'))->toBe(1)
+        ->and(File::directories("{$this->sandbox}/tmp"))->toBe([])
+        ->and(($this->filesIn)('tmp'))->toBe(['keep-me.txt']);
+});
+
+it('refuses images it cannot send', function (array $arguments, string $error): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+
+    $arguments = array_map(fn (string $argument): string => str_replace('SANDBOX', $this->sandbox, $argument), $arguments);
+
+    $result = ($this->runScript)($this->script, $arguments);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe(str_replace(['SANDBOX', 'URL'], [$this->sandbox, url('/')], $error)."\n")
+        ->and(($this->calls)())->toBe('');
+})->with([
+    'more than 3' => [[...array_merge(...array_fill(0, 4, ['--image', 'SANDBOX/home/first.png'])), 'Shipped!'], 'devnull: A commit can carry up to 3 images.'],
+    'missing' => [['--image', 'SANDBOX/home/missing.png', 'Shipped!'], 'devnull: Could not read the image SANDBOX/home/missing.png.'],
+    'a directory' => [['--image', 'SANDBOX/home', 'Shipped!'], 'devnull: Could not read the image SANDBOX/home.'],
+    'no path' => [['--image'], "devnull: Usage: curl -fsSL URL/commit | bash -s -- --image <path> 'Your commit'"],
+]);
+
+it('cleans up the copies of the images when signing fails', function (): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+
+    $result = ($this->runScript)($this->script, ['--image', "{$this->sandbox}/home/first.png", 'Shipped!'], env: ['SIGN_FAILS' => '1']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and(File::directories("{$this->sandbox}/tmp"))->toBe([])
+        ->and(($this->filesIn)('tmp'))->toBe(['keep-me.txt']);
+});
+
+it('fails when it cannot hash an image', function (): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+    File::put("{$this->sandbox}/bin/shasum", "#!/usr/bin/env bash\nexit 1\n");
+    File::chmod("{$this->sandbox}/bin/shasum", 0755);
+
+    $result = ($this->runScript)($this->script, ['--image', "{$this->sandbox}/home/first.png", 'Shipped!']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: Could not hash the image {$this->sandbox}/home/first.png.\n")
+        ->and(($this->calls)())->not->toContain('ssh-keygen')
+        ->and(($this->filesIn)('tmp'))->toBe(['keep-me.txt']);
+});
+
+it('cleans up the copies of the images when it fails', function (): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+
+    $result = ($this->runScript)($this->script, ['--image', "{$this->sandbox}/home/first.png", 'Shipped!'], env: ['COMMIT_STATUS' => '503']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and(File::directories("{$this->sandbox}/tmp"))->toBe([])
+        ->and(($this->filesIn)('tmp'))->toBe(['keep-me.txt']);
+});
+
+it('accepts images of up to 10 MB', function (): void {
+    $image = "{$this->sandbox}/home/large.png";
+    ftruncate($handle = fopen($image, 'w'), 10_240_000);
+    fclose($handle);
+
+    $result = ($this->runScript)($this->script, ['--image', $image, 'Shipped!']);
+
+    expect($result->exitCode())->toBe(0);
+});
+
+it('refuses larger images before sending anything', function (): void {
+    $image = "{$this->sandbox}/home/huge.png";
+    ftruncate($handle = fopen($image, 'w'), 10_240_001);
+    fclose($handle);
+
+    $result = ($this->runScript)($this->script, ['--image', $image, 'Shipped!']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: The image {$image} is larger than 10 MB.\n")
+        ->and(($this->calls)())->toBe('');
 });
 
 it('never signs with a key it did not send', function (): void {

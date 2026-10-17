@@ -4,8 +4,11 @@
 #
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --image shipped.png 'Shipped!'
 #
-# `--reply` takes the hash of a commit (as shown on /dev/null) or its link.
+# `--reply` takes the hash of a commit (as shown on /dev/null) or its link. `--image` takes the
+# path of a JPEG, PNG, GIF or WebP file of up to 10 MB, up to 3 times. A `--` ends the options,
+# for a message that starts with one of them.
 #
 # There is no login: your commit is signed locally with an SSH key that is on your GitHub
 # account, and /dev/null checks the signature against the public keys GitHub publishes for you.
@@ -13,10 +16,11 @@
 # What this script does, and nothing else:
 #   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
 #      on your GitHub account. Public keys are public: GitHub publishes them too.
-#   2. Signs your message with that key, using `ssh-keygen -Y sign` with the "devnull-commit"
-#      namespace: the signature is only valid for /dev/null commits, it can't be used to sign
-#      git commits or to log in anywhere.
-#   3. Sends the message and its signature to /dev/null.
+#   2. Signs your message (and the SHA-256 of each image) with that key, using `ssh-keygen -Y sign`
+#      with the "devnull-commit" namespace ("devnull-commit-images" when images are attached): the
+#      signature is only valid for /dev/null commits, it can't be used to sign git commits or to
+#      log in anywhere.
+#   3. Sends the message, the images, and the signature to /dev/null.
 #
 # It never reads or sends private keys (ssh-keygen or your SSH agent uses them), never changes
 # ~/.ssh or your SSH agent, never overwrites a file, and only writes a few files in a private
@@ -45,16 +49,52 @@ main() {
   done
 
   local reply_to=""
-  if [ "${1:-}" = "--reply" ]; then
-    [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --reply <commit hash or link> 'Your reply'"
-    reply_to="$2"
-    shift 2
+  local images=()
+  while :; do
+    case "${1:-}" in
+      --reply)
+        [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --reply <commit hash or link> 'Your reply'"
+        [ -z "$reply_to" ] || fail "--reply can only be given once."
+        reply_to="$2"
+        shift 2
+        ;;
+      --image)
+        [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --image <path> 'Your commit'"
+        images+=("$2")
+        shift 2
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *) break ;;
+    esac
+  done
+
+  local has_images=false
+  if [ "${#images[@]}" -gt 0 ]; then
+    has_images=true
+    NAMESPACE="devnull-commit-images"
   fi
 
   # It goes on its own line of the signed payload.
   case "$reply_to" in
     *[!A-Za-z0-9:/._@-]*) fail "--reply takes the hash of a commit or its link." ;;
   esac
+
+  [ "${#images[@]}" -le 3 ] || fail "A commit can carry up to 3 images."
+
+  local image size
+  if $has_images; then
+    command -v cp > /dev/null || fail "cp is required."
+    command -v wc > /dev/null || fail "wc is required."
+    command -v shasum > /dev/null || command -v sha256sum > /dev/null || fail "shasum or sha256sum is required."
+    for image in "${images[@]}"; do
+      [ -f "$image" ] && [ -r "$image" ] || fail "Could not read the image $image."
+      size="$(wc -c < "$image" | tr -d ' ')"
+      [ "$size" -le 10240000 ] || fail "The image $image is larger than 10 MB."
+    done
+  fi
 
   local message="$*"
 
@@ -89,7 +129,7 @@ main() {
 
   [ -s "$TMP_DIR/candidates" ] || fail "No Ed25519 or RSA SSH key found in your SSH agent or in ~/.ssh."
 
-  request --data-binary @"$TMP_DIR/candidates" "$DEVNULL_URL/api/cli/key-lookups"
+  request --header 'Content-Type: text/plain; charset=utf-8' --data-binary @"$TMP_DIR/candidates" "$DEVNULL_URL/api/cli/key-lookups"
 
   # Only ever sign with one of our own keys, whatever /dev/null answers.
   local key
@@ -112,9 +152,25 @@ main() {
 
   [ -n "$signing_key" ] || fail "Could not find the private key of $key."
 
+  local hashes="" position=1 image_fields=() image_hash
+  if $has_images; then
+    for image in "${images[@]}"; do
+      TMP_FILES+=("image-$position")
+      cp -- "$image" "$TMP_DIR/image-$position"
+      image_hash="$(sha256 "$TMP_DIR/image-$position")" || fail "Could not hash the image $image."
+      hashes="$hashes${hashes:+,}$image_hash"
+      image_fields+=(--form "images[]=@image-$position")
+      position=$((position + 1))
+    done
+  fi
+
   local nonce
   nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
-  printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
+  if $has_images; then
+    printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
+  else
+    printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
+  fi
 
   # Passphrase prompts go to /dev/tty: keep ssh-keygen away from stdin, which is this script.
   if ! ssh-keygen -Y sign -n "$NAMESPACE" -f "$signing_key" "$TMP_DIR/commit" < /dev/null 2> "$TMP_DIR/ssh-keygen.log"; then
@@ -130,8 +186,16 @@ main() {
     '' | *[!A-Za-z0-9+/=]*) fail "ssh-keygen produced an unexpected signature." ;;
   esac
 
-  # 3. Commit.
-  request --header "X-SSH-Signature: $signature" --data-binary @"$TMP_DIR/commit" "$DEVNULL_URL/api/cli/commits"
+  # 3. Commit: the payload is the raw body, or a file next to the image files. The form request
+  # runs from inside the private directory, so curl's --form parser, which gives , ; and " special
+  # meaning, only ever sees the fixed file names, never a path.
+  if $has_images; then
+    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" \
+      --form "payload=@commit" "${image_fields[@]}" "$DEVNULL_URL/api/cli/commits") || exit 1
+  else
+    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" \
+      --data-binary @"$TMP_DIR/commit" "$DEVNULL_URL/api/cli/commits"
+  fi
   sanitize < "$TMP_DIR/response"
 }
 
@@ -169,7 +233,6 @@ sanitize() {
 request() {
   local status
   status="$(curl --disable --silent --show-error --proto "$PROTOCOLS" --tlsv1.2 --max-time 30 \
-    --header 'Content-Type: text/plain; charset=utf-8' \
     --output "$TMP_DIR/response" --write-out '%{http_code}' "$@")" \
     || fail "Could not reach $DEVNULL_URL."
 
@@ -177,6 +240,14 @@ request() {
     [ -s "$TMP_DIR/response" ] || fail "Unexpected answer from $DEVNULL_URL (HTTP $status)."
     fail "$(cat "$TMP_DIR/response")"
   fi
+}
+
+sha256() {
+  if command -v shasum > /dev/null; then
+    shasum -a 256 -- "$1"
+  else
+    sha256sum -- "$1"
+  fi | awk '{ print $1 }'
 }
 
 # "<type> <base64>", without the comment.

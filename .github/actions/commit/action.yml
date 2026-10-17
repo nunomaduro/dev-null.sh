@@ -13,6 +13,10 @@ inputs:
     description: The hash or link of a commit to reply to.
     required: false
     default: ''
+  images:
+    description: Paths of JPEG, PNG, GIF or WebP files to attach, one per line, up to 3.
+    required: false
+    default: ''
   url:
     description: The devnull to commit to.
     required: false
@@ -27,5 +31,6 @@ runs:
         DEVNULL_BODY: ${{ inputs.body }}
         DEVNULL_SSH_KEY: ${{ inputs.ssh-key }}
         DEVNULL_REPLY_TO: ${{ inputs.reply-to }}
+        DEVNULL_IMAGES: ${{ inputs.images }}
         DEVNULL_URL: ${{ inputs.url }}
       run: bash "$GITHUB_ACTION_PATH/commit.sh"

@@ -10,6 +10,9 @@ use App\Queries\CommitByReferenceQuery;
 use App\Rules\CommitReference;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\File;
 
 /**
  * A commit signed by the `devnull commit` script, which replies by commit hash or link instead of by ID.
@@ -22,7 +25,7 @@ final class CreateCliCommitRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string|ValidationRule>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions>>
      */
     public function rules(): array
     {
@@ -32,6 +35,8 @@ final class CreateCliCommitRequest extends FormRequest
         return [
             'body' => CreateCommitRequest::BODY_RULES,
             'reply_to' => ['nullable', 'string', new CommitReference($user)],
+            'images' => CreateCommitRequest::imageListRules(),
+            'images.*' => CreateCommitRequest::imageRules(),
         ];
     }
 
@@ -43,6 +48,14 @@ final class CreateCliCommitRequest extends FormRequest
         return $this->filled('reply_to')
             ? resolve(CommitByReferenceQuery::class)->get($user, $this->string('reply_to')->value())?->first()
             : null;
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    public function images(): array
+    {
+        return CreateCommitRequest::imagesFrom($this);
     }
 
     public function prepareForValidation(): void

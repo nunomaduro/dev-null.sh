@@ -3,15 +3,21 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Http\Middleware\AuthenticateSshSignature;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Support\SshKeyPair;
 
 /**
@@ -23,6 +29,29 @@ function postSignedCommit(array $commit): TestResponse
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
         'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
     ], content: $commit['payload']);
+}
+
+/**
+ * @param  array{payload: string, signature: string}  $commit
+ * @param  list<UploadedFile>  $images
+ */
+function postSignedCommitWithImages(array $commit, array $images): TestResponse
+{
+    return test()->call('POST', route('cli-commit.store'), files: [
+        'payload' => UploadedFile::fake()->createWithContent('commit', $commit['payload']),
+        'images' => $images,
+    ], server: [
+        'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+    ]);
+}
+
+/**
+ * @param  list<UploadedFile>  $images
+ * @return list<string>
+ */
+function imageHashes(array $images): array
+{
+    return array_map(fn (UploadedFile $image): string => (string) hash_file('sha256', $image->getRealPath()), $images);
 }
 
 beforeEach(function (): void {
@@ -91,6 +120,231 @@ it('attaches a link preview for the first link', function (): void {
     expect($commit->linkPreview->url)->toBe('https://example.com/first');
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('creates a commit with images', function (): void {
+    Storage::fake();
+
+    $images = [
+        UploadedFile::fake()->image('first.jpg', 40, 30),
+        UploadedFile::fake()->image('second.png', 10, 10),
+    ];
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), $images);
+
+    $commit = $this->user->commits()->sole();
+
+    $response->assertCreated()
+        ->assertContent('Committed: '.route('commit.show', [$this->user, $commit])." (pending review, only you can see it until it is approved)\n");
+
+    expect($commit->body)->toBe('Shipped!')
+        ->and($commit->images)->toHaveCount(2)
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(2);
+});
+
+it('authenticates images as php hands them over', function (): void {
+    $image = UploadedFile::fake()->image('first.jpg', 10, 10);
+    $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes([$image]));
+
+    $payload = UploadedFile::fake()->createWithContent('commit', $commit['payload']);
+
+    $request = Request::create(route('cli-commit.store'), 'POST', files: [
+        'payload' => new SymfonyUploadedFile($payload->getRealPath(), 'commit', test: true),
+        'images' => [new SymfonyUploadedFile($image->getRealPath(), 'first.jpg', 'image/jpeg', test: true)],
+    ], server: ['HTTP_X_SSH_SIGNATURE' => $commit['signature']]);
+
+    $response = resolve(AuthenticateSshSignature::class)->handle($request, fn (Request $request): Response => response($request->string('body')->value()));
+
+    expect($response->getContent())->toBe('Shipped!');
+});
+
+it('creates a commit with images whose body ends with whitespace', function (string $body): void {
+    Storage::fake();
+
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, $body, imageHashes: imageHashes($images)), $images)->assertCreated();
+
+    expect($this->user->commits()->sole()->body)->toBe('Shipped!');
+})->with([
+    'trailing newline' => "Shipped!\n",
+    'trailing space' => 'Shipped! ',
+]);
+
+it('replies to a commit with images', function (): void {
+    Storage::fake();
+
+    $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130', imageHashes: imageHashes($images)), $images)->assertCreated();
+
+    $reply = $this->user->commits()->sole();
+
+    expect($reply->parent_id)->toBe($parent->id)
+        ->and($reply->images)->toHaveCount(1);
+});
+
+it('reads a commit without images from the raw body, even when it looks like a form', function (): void {
+    $commit = signedCommit($this->keyPair, 'Shipped & payload=nothing');
+
+    $response = $this->call('POST', route('cli-commit.store'), parameters: ['payload' => 'nothing'], server: [
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+    ], content: $commit['payload']);
+
+    $response->assertCreated();
+
+    expect($this->user->commits()->sole()->body)->toBe('Shipped & payload=nothing');
+});
+
+it('rejects a commit without images sent as a form', function (): void {
+    $commit = signedCommit($this->keyPair, 'Shipped!');
+
+    $response = $this->call('POST', route('cli-commit.store'), parameters: ['payload' => $commit['payload']], server: [
+        'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+    ]);
+
+    $response->assertUnauthorized()
+        ->assertContent("Invalid signature.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects images sent without their payload', function (): void {
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+    $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images));
+
+    $response = postSignedCommitWithImages([...$commit, 'payload' => ''], $images);
+
+    $response->assertUnauthorized()
+        ->assertContent("Invalid signature.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('keeps the images in the order they were signed', function (): void {
+    Storage::fake();
+
+    $images = [
+        UploadedFile::fake()->image('wide.jpg', 40, 10),
+        UploadedFile::fake()->image('tall.jpg', 10, 40),
+    ];
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes(array_reverse($images))), $images)
+        ->assertUnauthorized()
+        ->assertContent("The attached images do not match the signed payload.\n");
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), $images)->assertCreated();
+
+    expect($this->user->commits()->sole()->images->pluck('width')->all())->toBe([40, 10]);
+});
+
+it('rejects a payload sent as a text field next to the images', function (): void {
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+    $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images));
+
+    $response = $this->call('POST', route('cli-commit.store'), parameters: ['payload' => $commit['payload']], files: ['images' => $images], server: [
+        'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+    ]);
+
+    $response->assertUnauthorized()
+        ->assertContent("Invalid signature.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects images that do not match the signed payload', function (): void {
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'another image')]), $images);
+
+    $response->assertUnauthorized()
+        ->assertContent("The attached images do not match the signed payload.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects images attached to a commit signed without them', function (): void {
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!'), $images);
+
+    $response->assertUnauthorized()
+        ->assertContent("Invalid signature.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects a nested images field', function (): void {
+    $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'an image')]);
+
+    $response = $this->call('POST', route('cli-commit.store'), files: [
+        'payload' => UploadedFile::fake()->createWithContent('commit', $commit['payload']),
+        'images' => [[UploadedFile::fake()->image('first.jpg', 10, 10)]],
+    ], server: [
+        'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+    ]);
+
+    $response->assertUnauthorized()
+        ->assertContent("The attached images could not be read.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects a commit signed with more than 3 images', function (): void {
+    $images = [
+        UploadedFile::fake()->image('first.jpg', 10, 10),
+        UploadedFile::fake()->image('second.jpg', 10, 10),
+        UploadedFile::fake()->image('third.jpg', 10, 10),
+        UploadedFile::fake()->image('fourth.jpg', 10, 10),
+    ];
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), $images);
+
+    $response->assertUnauthorized()
+        ->assertContent("Malformed payload.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects more than 3 images before looking at any of them', function (): void {
+    $images = [
+        UploadedFile::fake()->image('first.jpg', 10, 10),
+        UploadedFile::fake()->image('second.jpg', 10, 10),
+        UploadedFile::fake()->image('third.jpg', 10, 10),
+    ];
+    $failed = new UploadedFile($images[0]->getRealPath(), 'fourth.jpg', 'image/jpeg', UPLOAD_ERR_INI_SIZE, test: true);
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), [...$images, $failed]);
+
+    $response->assertUnauthorized()
+        ->assertContent("The attached images do not match the signed payload.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects an image that failed to upload', function (): void {
+    $image = UploadedFile::fake()->image('first.jpg', 10, 10);
+    $failed = new UploadedFile($image->getRealPath(), 'first.jpg', 'image/jpeg', UPLOAD_ERR_INI_SIZE, test: true);
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes([$image])), [$failed]);
+
+    $response->assertUnprocessable()
+        ->assertContent("The image failed to upload.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects a file that is not an image', function (): void {
+    $images = [UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf')];
+
+    $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), $images);
+
+    $response->assertUnprocessable()
+        ->assertContent("The images.0 field must be an image.\n");
+
+    expect(Commit::query()->count())->toBe(0);
 });
 
 it('fails to reply to an unknown commit', function (): void {

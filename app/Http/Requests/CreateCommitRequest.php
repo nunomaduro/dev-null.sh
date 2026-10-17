@@ -35,14 +35,47 @@ final class CreateCommitRequest extends FormRequest
         }
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public static function imageListRules(): array
+    {
+        return ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES];
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    public static function imagesFrom(FormRequest $request): array
+    {
+        $images = $request->file('images');
+
+        return is_array($images) ? array_values($images) : [];
+    }
+
+    /**
+     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
+     *
+     * @return array<int, string|File|Dimensions>
+     */
+    public static function imageRules(): array
+    {
+        return [
+            'required',
+            'image',
+            File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+            Rule::dimensions()
+                ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
+        ];
+    }
+
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
-     *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
@@ -59,15 +92,8 @@ final class CreateCommitRequest extends FormRequest
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
-            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
+            'images' => self::imageListRules(),
+            'images.*' => self::imageRules(),
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];
@@ -122,9 +148,7 @@ final class CreateCommitRequest extends FormRequest
      */
     public function images(): array
     {
-        $images = $this->file('images');
-
-        return is_array($images) ? array_values($images) : [];
+        return self::imagesFrom($this);
     }
 
     /**

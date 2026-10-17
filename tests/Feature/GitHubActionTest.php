@@ -7,10 +7,12 @@ use App\Jobs\UnfurlLink;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -41,8 +43,9 @@ beforeEach(function (): void {
           case "$1" in
             --output) output="$2"; shift 2 ;;
             --header) case "$2" in "X-SSH-Signature: "*) printf '%s' "${2#X-SSH-Signature: }" > "$SANDBOX/sent-signature" ;; esac; shift 2 ;;
-            --proto | --max-time | --write-out) shift 2 ;;
+            --proto | --max-time | --speed-limit | --speed-time | --write-out) shift 2 ;;
             --data-binary) cp "${2#@}" "$SANDBOX/sent-$(basename "${2#@}")"; shift 2 ;;
+            --form) case "$2" in "payload=@"*) cp "${2#payload=@}" "$SANDBOX/sent-commit" ;; "images[]=@"*) cp "${2#images[]=@}" "$SANDBOX/sent-${2#images[]=@}" ;; esac; shift 2 ;;
             -*) shift ;;
             *) url="$1"; shift ;;
           esac
@@ -108,6 +111,44 @@ it('replies to a commit', function (): void {
 
     expect($result->exitCode())->toBe(0)
         ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+});
+
+it('attaches the images, one path per line, signed so devnull accepts them', function (): void {
+    $first = UploadedFile::fake()->image('first.png', 20, 10)->getContent();
+    $second = UploadedFile::fake()->image('second.png', 10, 20)->getContent();
+
+    File::put("{$this->sandbox}/first.png", $first);
+    File::put("{$this->sandbox}/second image.png", $second);
+
+    $result = ($this->runAction)([
+        'DEVNULL_IMAGES' => "{$this->sandbox}/first.png \r\n\r\n  {$this->sandbox}/second image.png  \r\n",
+        'DEVNULL_BODY' => '--reply is not an option here',
+    ]);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-image-1"))->toBe($first)
+        ->and(File::get("{$this->sandbox}/sent-image-2"))->toBe($second)
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toEndWith("\n".hash('sha256', $first).','.hash('sha256', $second)."\n--reply is not an option here");
+
+    $user = User::factory()->create();
+    SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
+    fakeGitHubSshKeys($user, signingKeys: [$this->publicKey]);
+    Storage::fake();
+
+    $this->call('POST', route('cli-commit.store'), files: [
+        'payload' => new UploadedFile("{$this->sandbox}/sent-commit", 'commit', test: true),
+        'images' => [
+            new UploadedFile("{$this->sandbox}/sent-image-1", 'image-1', test: true),
+            new UploadedFile("{$this->sandbox}/sent-image-2", 'image-2', test: true),
+        ],
+    ], server: [
+        'HTTP_X_SSH_SIGNATURE' => File::get("{$this->sandbox}/sent-signature"),
+    ])->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('--reply is not an option here')
+        ->and($commit->images)->toHaveCount(2);
 });
 
 it('fails with the answer of devnull', function (): void {
