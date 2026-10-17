@@ -107,17 +107,24 @@ it('adds a scheme to websites without one', function (): void {
     expect($user->website)->toBe('https://nunomaduro.com');
 });
 
-it('keeps http websites as they are', function (): void {
+it('keeps http and https websites as they are regardless of scheme case', function (string $website): void {
     fakeGitHubSponsorsListing();
 
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
-        'blog' => 'http://example.com',
+        'blog' => $website,
     ]));
 
-    expect($user->website)->toBe('http://example.com');
-});
+    expect($user->refresh()->website)->toBe($website);
+})->with([
+    'http' => 'http://example.com/Path?Key=Value#Section',
+    'https' => 'https://example.com/Path?Key=Value#Section',
+    'uppercase http' => 'HTTP://example.com/Path?Key=Value#Section',
+    'uppercase https' => 'HTTPS://example.com/Path?Key=Value#Section',
+    'mixed-case http' => 'HtTp://example.com/Path?Key=Value#Section',
+    'mixed-case https' => 'HtTpS://example.com/Path?Key=Value#Section',
+]);
 
 it('marks users with a sponsors listing', function (): void {
     Log::spy();

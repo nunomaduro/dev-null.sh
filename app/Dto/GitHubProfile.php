@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Dto;
 
 use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 /**
@@ -76,7 +75,7 @@ final readonly class GitHubProfile
     {
         $website = self::nullIfBlank($value);
 
-        if ($website === null || Str::startsWith($website, ['http://', 'https://'])) {
+        if ($website === null || preg_match('/^https?:\/\//i', $website) === 1) {
             return $website;
         }
 
