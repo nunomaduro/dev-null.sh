@@ -5,6 +5,7 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    Coins,
     MessageSquareReply,
     Quote,
     Star,
@@ -708,12 +709,16 @@ function NotificationContent({
             : 0;
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
-    const isOwnCommit = notification.type === 'starred' || moderation;
+    const isOwnCommit =
+        notification.type === 'starred' ||
+        notification.type === 'tipped' ||
+        moderation;
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
         quoted: Quote,
         starred: Star,
+        tipped: Coins,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -749,6 +754,7 @@ function NotificationContent({
         replied: 'replied to your commit',
         quoted: 'quoted your commit',
         starred: 'starred your commit',
+        tipped: 'sent Bytes to your commit',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',

@@ -13,4 +13,5 @@ enum NotificationType: string
     case Rejected = 'rejected';
     case Quoted = 'quoted';
     case Starred = 'starred';
+    case Tipped = 'tipped';
 }

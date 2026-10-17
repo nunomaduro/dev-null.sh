@@ -28,7 +28,7 @@ export type Notification =
           commit: null;
       })
     | (BaseNotification & {
-          type: 'replied' | 'starred';
+          type: 'replied' | 'starred' | 'tipped';
           commit_id: string;
           subject_id: string;
           commit: Omit<Commit, 'user'>;

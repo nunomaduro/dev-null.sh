@@ -28,6 +28,9 @@ export type XpBreakdown = {
     stars_received: XpMetric;
     replies: XpMetric;
     stars_given: XpMetric;
+    kudos_given: XpMetric;
+    kudos_received: XpMetric;
+    skins_unlocked: XpMetric;
 };
 
 export type Achievements = {
@@ -37,6 +40,13 @@ export type Achievements = {
     next_level_xp: number | null;
     level_progress: number;
     xp_breakdown: XpBreakdown;
+    level_rewards: {
+        level: number;
+        bytes: number;
+        skin: string | null;
+        claimed: boolean;
+        eligible: boolean;
+    }[];
     ranks: UnixRank[];
     badges: AchievementBadge[];
 };

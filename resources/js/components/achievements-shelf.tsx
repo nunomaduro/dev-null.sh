@@ -47,9 +47,6 @@ export function AchievementsShelf({
     onInspect: () => void;
 }) {
     const unlockedCount = achievements.badges.filter((b) => b.unlocked).length;
-    const nextRank = achievements.ranks.find(
-        (r) => r.level === achievements.level + 1,
-    );
 
     return (
         <section
@@ -90,9 +87,9 @@ export function AchievementsShelf({
                             : `${achievements.xp} XP`}
                     </span>
                     <span>
-                        {nextRank
-                            ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
-                            : 'Maximum rank (UID 0)'}
+                        {achievements.next_level_xp !== null
+                            ? `${achievements.next_level_xp - achievements.xp} XP to level ${achievements.level + 1}`
+                            : 'Level 100 reached'}
                     </span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">

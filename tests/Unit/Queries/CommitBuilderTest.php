@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\CommitTip;
 use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -171,4 +172,27 @@ it('leaves muted and blocked replies out of threads and reply counts', function 
 
     expect($commit->replies()->visibleInThreadTo($user)->pluck('id')->all())->toBe([$reply->id])
         ->and(Commit::query()->withVisibleReplyCount($user)->find($commit->id)->replies_count)->toBe(1);
+});
+
+it('loads tip counts and total bytes gifted for commits', function (): void {
+    $commit = Commit::factory()->create();
+    $sender = User::factory()->create();
+
+    CommitTip::factory()->create([
+        'commit_id' => $commit->id,
+        'sender_id' => $sender->id,
+        'recipient_id' => $commit->user_id,
+        'amount' => 50,
+    ]);
+    CommitTip::factory()->create([
+        'commit_id' => $commit->id,
+        'sender_id' => $sender->id,
+        'recipient_id' => $commit->user_id,
+        'amount' => 25,
+    ]);
+
+    $loaded = Commit::query()->withTips()->findOrFail($commit->id);
+
+    expect($loaded->tips_count)->toBe(2)
+        ->and((int) $loaded->tips_total_bytes)->toBe(75);
 });

@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use App\Queries\UserWalletQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -54,6 +55,7 @@ final class HandleInertiaRequests extends Middleware
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),
                 ] : null,
+                'wallet' => fn (): ?array => $user instanceof User ? resolve(UserWalletQuery::class)->get($user) : null,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

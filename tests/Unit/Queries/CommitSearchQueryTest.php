@@ -12,6 +12,10 @@ beforeEach(function (): void {
     config(['services.openai.key' => 'sk-test']);
 });
 
+afterEach(function (): void {
+    config(['services.openai.key' => null]);
+});
+
 it('returns the commits nearest in meaning, closest first', function (): void {
     fakeSearch();
 

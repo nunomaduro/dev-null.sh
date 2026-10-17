@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserShadowQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -26,7 +27,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, UserShadowQuery $shadows, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -56,6 +57,7 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
+            'shadow' => fn (): array => $shadows->get($user, $currentUser),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)

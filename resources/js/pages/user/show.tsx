@@ -19,8 +19,10 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { LevelRewards } from '@/components/level-rewards';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ShadowCompanion } from '@/components/shadow-companion';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -34,6 +36,7 @@ import type {
     Commit,
     CursorPaginated,
     Profile,
+    ShadowData,
     Streaks,
 } from '@/types';
 
@@ -50,6 +53,7 @@ export default function Show({
     activity,
     streaks,
     achievements,
+    shadow,
     commits,
     tab,
     pinnedCommit,
@@ -62,6 +66,7 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
+    shadow: ShadowData;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
@@ -332,6 +337,11 @@ export default function Show({
                 onInspect={() => setIsAchievementsOpen(true)}
             />
 
+            <LevelRewards
+                rewards={achievements.level_rewards}
+                canClaim={isCurrentUser}
+            />
+
             <AchievementsDialog
                 open={isAchievementsOpen}
                 onOpenChange={setIsAchievementsOpen}
@@ -339,6 +349,15 @@ export default function Show({
                 user={user}
                 lane={lane}
             />
+
+            {shadow && (
+                <ShadowCompanion
+                    shadow={shadow}
+                    lane={lane}
+                    isCurrentUser={isCurrentUser}
+                    user={user}
+                />
+            )}
 
             <PageTabs
                 label="Profile feed"
