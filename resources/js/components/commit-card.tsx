@@ -25,6 +25,11 @@ import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
@@ -257,18 +262,26 @@ export function CommitCard({
                                     </Link>
 
                                     {isDeletable && (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setDeletion('confirming')
-                                            }
-                                            aria-label="Delete commit"
-                                            title="Delete commit"
-                                            className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-                                            data-test="delete-commit-button"
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setDeletion(
+                                                            'confirming',
+                                                        )
+                                                    }
+                                                    aria-label="Delete commit"
+                                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                                                    data-test="delete-commit-button"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                Delete commit
+                                            </TooltipContent>
+                                        </Tooltip>
                                     )}
                                 </span>
                             </div>

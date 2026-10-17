@@ -17,7 +17,6 @@ import type { CSSProperties } from 'react';
 import {
     Tooltip,
     TooltipContent,
-    TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -106,68 +105,64 @@ export function AchievementsShelf({
                 </div>
             </div>
 
-            <TooltipProvider delayDuration={150}>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {achievements.badges.map((badge) => {
-                        const Icon = iconMap[badge.icon] ?? Terminal;
+            <div className="mt-3 flex flex-wrap gap-2">
+                {achievements.badges.map((badge) => {
+                    const Icon = iconMap[badge.icon] ?? Terminal;
 
-                        return (
-                            <Tooltip key={badge.id}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        onClick={onInspect}
-                                        className={cn(
-                                            'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
-                                            badge.unlocked
-                                                ? 'border-border bg-card text-foreground shadow-xs hover:border-(--lane)'
-                                                : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground/60 hover:border-muted-foreground/60',
-                                        )}
-                                        style={
-                                            badge.unlocked
-                                                ? ({
-                                                      '--lane': lane,
-                                                  } as CSSProperties)
-                                                : undefined
-                                        }
-                                    >
-                                        <Icon
-                                            className={cn(
-                                                'size-3.5',
-                                                badge.unlocked
-                                                    ? 'text-foreground'
-                                                    : 'text-muted-foreground/50',
-                                            )}
-                                        />
-                                        <span>{badge.name}</span>
-                                        {!badge.unlocked &&
-                                            badge.target > 1 && (
-                                                <span className="text-[10px] text-muted-foreground/60">
-                                                    ({badge.progress}/
-                                                    {badge.target})
-                                                </span>
-                                            )}
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="top"
-                                    className="max-w-xs font-mono text-xs"
+                    return (
+                        <Tooltip key={badge.id}>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    onClick={onInspect}
+                                    className={cn(
+                                        'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
+                                        badge.unlocked
+                                            ? 'border-border bg-card text-foreground shadow-xs hover:border-(--lane)'
+                                            : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground/60 hover:border-muted-foreground/60',
+                                    )}
+                                    style={
+                                        badge.unlocked
+                                            ? ({
+                                                  '--lane': lane,
+                                              } as CSSProperties)
+                                            : undefined
+                                    }
                                 >
-                                    <p className="font-semibold text-foreground">
-                                        {badge.name}{' '}
-                                        {badge.unlocked
-                                            ? '✓'
-                                            : `(${badge.progress}/${badge.target})`}
-                                    </p>
-                                    <p className="mt-0.5 font-sans text-muted-foreground">
-                                        {badge.description}
-                                    </p>
-                                </TooltipContent>
-                            </Tooltip>
-                        );
-                    })}
-                </div>
-            </TooltipProvider>
+                                    <Icon
+                                        className={cn(
+                                            'size-3.5',
+                                            badge.unlocked
+                                                ? 'text-foreground'
+                                                : 'text-muted-foreground/50',
+                                        )}
+                                    />
+                                    <span>{badge.name}</span>
+                                    {!badge.unlocked && badge.target > 1 && (
+                                        <span className="text-[10px] text-muted-foreground/60">
+                                            ({badge.progress}/{badge.target})
+                                        </span>
+                                    )}
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                                side="top"
+                                className="max-w-xs font-mono text-xs"
+                            >
+                                <p className="font-semibold text-foreground">
+                                    {badge.name}{' '}
+                                    {badge.unlocked
+                                        ? '✓'
+                                        : `(${badge.progress}/${badge.target})`}
+                                </p>
+                                <p className="mt-0.5 font-sans text-muted-foreground">
+                                    {badge.description}
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    );
+                })}
+            </div>
         </section>
     );
 }
