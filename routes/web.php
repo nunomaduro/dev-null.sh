@@ -22,11 +22,13 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -263,6 +265,16 @@ Route::middleware('auth')->group(function (): void {
 
     // Safety...
     Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
+
+    // Devices...
+    Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
+    Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
+
+    // Mobile Authorization...
+    Route::get('mobile/authorize', [MobileAuthorizationController::class, 'show'])->name('mobile-authorization.show');
+    Route::post('mobile/authorize', [MobileAuthorizationController::class, 'store'])
+        ->middleware('throttle:mobile-authorizations')
+        ->name('mobile-authorization.store');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
+use App\Models\Device;
 use App\Models\User;
 use App\Services\OpenAI;
 use Carbon\CarbonInterface;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
 use Tests\TestCase;
 
@@ -226,4 +228,51 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
+}
+
+/**
+ * Signs an API request the way the mobile app does, and returns its headers as server variables.
+ *
+ * @return array<string, string>
+ */
+function signApiRequest(SshKeyPair $keyPair, string $method, string $uri, string $body = '', ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): array
+{
+    $timestamp ??= now()->getTimestamp();
+    $nonce ??= bin2hex(random_bytes(16));
+
+    $query = parse_url(url($uri), PHP_URL_QUERY);
+    $target = parse_url(url($uri), PHP_URL_PATH).(is_string($query) ? "?{$query}" : '');
+
+    return [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_ACCEPT' => 'application/json',
+        'HTTP_X_DEVNULL_TIMESTAMP' => (string) $timestamp,
+        'HTTP_X_DEVNULL_NONCE' => $nonce,
+        'HTTP_X_SSH_SIGNATURE' => $keyPair->sign(implode("\n", [$timestamp, $nonce, mb_strtoupper($method), $target, $body]), $namespace),
+    ];
+}
+
+/**
+ * Sends an API request signed the way the mobile app does, with the data as its JSON body.
+ *
+ * @param  array<string, mixed>|null  $data
+ */
+function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?array $data = null, ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): TestResponse
+{
+    $body = $data === null ? '' : json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, server: signApiRequest($keyPair, $method, $uri, $body, $timestamp, $nonce, $namespace), content: $body);
+}
+
+/**
+ * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
+ * account, as the API doesn't need it to be.
+ */
+function apiKeyPairFor(User $user): SshKeyPair
+{
+    $keyPair = SshKeyPair::generate();
+
+    Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
+
+    return $keyPair;
 }

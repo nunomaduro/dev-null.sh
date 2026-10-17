@@ -2,17 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Enums\ApiErrorCode;
 use App\Enums\Log;
+use App\Exceptions\ApiException;
+use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
+use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -37,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Rate limits apply to the user authenticated by their SSH signature...
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSshSignature::class);
+        $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSignedRequest::class);
 
         $middleware->web(append: [
             HandleAppearance::class,
@@ -67,4 +74,9 @@ return Application::configure(basePath: dirname(__DIR__))
             return response(($message ?: Response::$statusTexts[$status] ?? 'Error.')."\n", $status, $headers)
                 ->header('Content-Type', 'text/plain; charset=utf-8');
         });
+
+        // The limits the web puts on social actions apply to the mobile app too, and answer it with a code...
+        $exceptions->render(fn (ThrottleRequestsException $exception, Request $request): ?JsonResponse => $request->is('api/v1/*') && $request->user() instanceof User
+            ? new ApiException(ApiErrorCode::RateLimited, $exception->getMessage(), $exception->getHeaders())->render()
+            : null);
     })->create();

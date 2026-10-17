@@ -52,3 +52,37 @@ it('skips mentions in code', function (): void {
     expect($mentions->usernames("thanks @taylorotwell for `@Override`\n```java\n@Deprecated\nvoid run() {}\n```"))
         ->toBe(['taylorotwell']);
 });
+
+it('finds where every mention is, keeping its case', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->positions('@NunoMaduro and @taylorotwell, thanks! cc @nunomaduro'))->toBe([
+        ['username' => 'NunoMaduro', 'offset' => 0, 'length' => 11],
+        ['username' => 'taylorotwell', 'offset' => 16, 'length' => 13],
+        ['username' => 'nunomaduro', 'offset' => 42, 'length' => 11],
+    ]);
+});
+
+it('counts offsets in characters, not bytes', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->positions('Café 🎉 with @nuno.'))->toBe([
+        ['username' => 'nuno', 'offset' => 12, 'length' => 5],
+    ]);
+});
+
+it('finds no positions for what only looks like a mention', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->positions('Mail nuno@laravel.com, npm i @inertiajs/react, try @vue.js'))->toBe([]);
+});
+
+it('skips mentions in inline code and code blocks when finding where they are', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->positions("thanks @taylorotwell for `@Override`, @nuno\n```java\n@Deprecated\nvoid run() {}\n```\ncc @jess-archer"))->toBe([
+        ['username' => 'taylorotwell', 'offset' => 7, 'length' => 13],
+        ['username' => 'nuno', 'offset' => 38, 'length' => 5],
+        ['username' => 'jess-archer', 'offset' => 85, 'length' => 12],
+    ]);
+});

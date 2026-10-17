@@ -3,10 +3,16 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
+use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Poll;
+use App\Models\PollOption;
+use App\Models\PollVote;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
@@ -188,4 +194,468 @@ it('limits each address to 60 requests a minute', function (): void {
         ->assertHeader('Retry-After', 60);
 
     $this->getJson(route('api-commit.show', $commit), ['REMOTE_ADDR' => '10.0.0.2'])->assertOk();
+});
+
+it('shows a signed request the commit as its page shows it to its user', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $keyPair = apiKeyPairFor($user);
+    $root = Commit::factory()->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
+    $commit = Commit::factory()->for($user)->for($root, 'parent')->create([
+        'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+        'body' => 'Ask @nunomaduro about `@Override`',
+    ]);
+    $image = CommitImage::factory()->for($commit)->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    $commit->stars()->attach($user);
+    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $commit->id]);
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit));
+
+    $author = fn (User $author): array => [
+        'id' => $author->id,
+        'username' => $author->username,
+        'name' => $author->name,
+        'avatar_url' => $author->avatar_url,
+        'bio' => $author->bio,
+        'company' => $author->company,
+        'location' => $author->location,
+        'website' => $author->website,
+        'github_url' => "https://github.com/{$author->username}",
+        'html_url' => route('user.show', $author),
+        'feed_url' => route('user-feed.show', $author),
+        'created_at' => now()->toIso8601ZuluString(),
+        'lane' => $author->lane(),
+    ];
+
+    $response->assertOk()
+        ->assertExactJson([
+            'data' => [
+                'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+                'short_hash' => 'e3f4a5b',
+                'body' => 'Ask @nunomaduro about `@Override`',
+                'parent_id' => $root->id,
+                'html_url' => route('commit.show', [$user, $commit]),
+                'created_at' => now()->toIso8601ZuluString(),
+                'stars_count' => 1,
+                'replies_count' => 1,
+                'link_preview' => null,
+                'images' => [
+                    ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'url' => route('commit-image.show', $image)],
+                ],
+                'author' => $author($user),
+                'body_segments' => [
+                    ['type' => 'text', 'text' => 'Ask @nunomaduro about '],
+                    ['type' => 'code', 'code' => '@Override'],
+                ],
+                'preview_segments' => null,
+                'mentions' => [['username' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
+                'status' => 'approved',
+                'is_pinned' => false,
+                'starred' => true,
+                'is_saved' => true,
+                'deleted_at' => null,
+                'quoted_commit_id' => null,
+                'quoted_commit' => null,
+                'poll' => null,
+            ],
+            'ancestors' => [[
+                'id' => $root->id,
+                'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
+                'body' => 'Who broke prod?',
+                'parent_id' => null,
+                'html_url' => route('commit.show', [$root->user, $root]),
+                'created_at' => now()->subMinute()->toIso8601ZuluString(),
+                'stars_count' => 0,
+                'link_preview' => null,
+                'images' => [],
+                'author' => $author($root->user),
+                'body_segments' => [['type' => 'text', 'text' => 'Who broke prod?']],
+                'preview_segments' => null,
+                'mentions' => [],
+                'status' => 'approved',
+                'is_pinned' => false,
+                'starred' => false,
+                'is_saved' => false,
+                'deleted_at' => null,
+                'quoted_commit_id' => null,
+                'quoted_commit' => null,
+                'poll' => null,
+            ]],
+        ]);
+});
+
+it('shows a signed request the poll of a commit as the web does, with each share once the votes show', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = Commit::factory()->create(['body' => 'Tabs or spaces?']);
+    $poll = Poll::factory()->for($commit)->withOptions('Tabs', 'Spaces', 'Both')->create(['opened_at' => now()->subHour()]);
+    [$tabs, $spaces, $both] = $poll->options->all();
+    PollVote::factory()->for($tabs, 'option')->count(2)->create();
+
+    $option = fn (PollOption $option, ?int $votes, bool $voted, ?int $percentage): array => [
+        'id' => $option->id,
+        'label' => $option->label,
+        'votes_count' => $votes,
+        'voted' => $voted,
+        'percentage' => $percentage,
+    ];
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll', [
+            'id' => $poll->id,
+            'closes_at' => $poll->closesAt()?->toJSON(),
+            'is_closed' => false,
+            'has_voted' => false,
+            'total_votes' => null,
+            'options' => [
+                $option($tabs, null, false, null),
+                $option($spaces, null, false, null),
+                $option($both, null, false, null),
+            ],
+        ]);
+
+    PollVote::factory()->for($both, 'option')->for($user)->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll.has_voted', true)
+        ->assertJsonPath('data.poll.total_votes', 3)
+        ->assertJsonPath('data.poll.options', [
+            $option($tabs, 2, false, 67),
+            $option($spaces, 0, false, 0),
+            $option($both, 1, true, 33),
+        ]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonMissingPath('data.poll');
+});
+
+it('shows a signed request the shares of a closed poll nobody voted on', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $poll->commit))
+        ->assertOk()
+        ->assertJsonPath('data.poll.is_closed', true)
+        ->assertJsonPath('data.poll.total_votes', 0)
+        ->assertJsonPath('data.poll.options.*.percentage', [0, 0]);
+});
+
+it('embeds the commit a commit quotes for a signed request, with its poll', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $quoted = Commit::factory()->create(['body' => 'Tabs or spaces?']);
+    Poll::factory()->for($quoted)->withOptions('Tabs', 'Spaces')->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create(['body' => 'Neither.']);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.body', 'Tabs or spaces?')
+        ->assertJsonPath('data.quoted_commit.author.id', $quoted->user_id)
+        ->assertJsonPath('data.quoted_commit.poll.options.*.label', ['Tabs', 'Spaces'])
+        ->assertJsonMissingPath('data.quoted_commit.quoted_commit');
+
+    $this->getJson(route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonMissingPath('data.quoted_commit_id')
+        ->assertJsonMissingPath('data.quoted_commit');
+});
+
+it('embeds a deleted quoted commit as a tombstone for a signed request', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->delete();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit', [
+            'id' => $quoted->id,
+            'parent_id' => null,
+            'deleted_at' => now()->toIso8601ZuluString(),
+        ]);
+});
+
+it('leaves out a quoted commit the signed-in user may not see, but still says one was quoted', function (Closure $hide): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $hide($quoted, $viewer);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit', null);
+})->with([
+    'pending' => fn (Commit $quoted) => $quoted->update(['status' => CommitStatus::Pending]),
+    'rejected' => fn (Commit $quoted) => $quoted->update(['status' => CommitStatus::Rejected]),
+    'across a block' => fn (Commit $quoted, User $viewer) => $quoted->user?->blocking()->attach($viewer),
+]);
+
+it('shows a signed-in user their own pending commits, and the parents they may see', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $parent = Commit::factory()->for($user)->pending()->create();
+    $commit = Commit::factory()->for($user)->for($parent, 'parent')->pending()->create();
+    $image = CommitImage::factory()->for($commit)->create();
+
+    $this->getJson(route('api-commit.show', $commit))->assertNotFound();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.parent_id', $parent->id)
+        ->assertJsonPath('data.images.0.id', $image->id)
+        ->assertJsonPath('ancestors.0.id', $parent->id)
+        ->assertJsonPath('ancestors.0.status', 'pending');
+});
+
+it('hides from a signed request the commits its user may not see', function (Closure $factory): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $factory()))->assertNotFound();
+})->with([
+    'pending' => [fn (): Commit => Commit::factory()->pending()->create()],
+    'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
+    'deleted' => [fn (): Commit => tap(Commit::factory()->create())->delete()],
+]);
+
+it('hides from a signed request the commits and ancestors across a block, as the web does', function (): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    $blocker = User::factory()->create();
+    $blocked = Commit::factory()->for($blocker)->create();
+    $reply = Commit::factory()->for($blocked, 'parent')->create();
+
+    $blocker->blocking()->attach($viewer);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $blocked))->assertNotFound();
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $reply))
+        ->assertOk()
+        ->assertJsonPath('data.parent_id', $blocked->id)
+        ->assertJsonCount(0, 'ancestors');
+    $this->getJson(route('api-commit.show', $blocked))->assertOk();
+});
+
+it('hides from a signed request the ancestors its user may not see', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $hidden = Commit::factory()->for(Commit::factory(), 'parent')->pending()->create();
+    $commit = Commit::factory()->for($user)->for($hidden, 'parent')->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.parent_id', $hidden->id)
+        ->assertJsonCount(0, 'ancestors');
+});
+
+it('shows deleted ancestors to a signed request as tombstones', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $root = Commit::factory()->create(['created_at' => now()->subMinutes(2)]);
+    $deleted = Commit::factory()->for($root, 'parent')->create(['body' => 'Gone', 'created_at' => now()->subMinute()]);
+    $commit = Commit::factory()->for($deleted, 'parent')->create();
+    $deleted->delete();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonCount(2, 'ancestors')
+        ->assertJsonPath('ancestors.0.id', $root->id)
+        ->assertJsonPath('ancestors.1', [
+            'id' => $deleted->id,
+            'parent_id' => $root->id,
+            'deleted_at' => now()->toIso8601ZuluString(),
+        ])
+        ->assertDontSee('Gone');
+});
+
+it('links the topmost ancestor to its parent when a thread is too deep to show it all', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $parent = Commit::factory()->create();
+
+    foreach (range(1, 21) as $depth) {
+        $parent = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(30 - $depth)]);
+    }
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-commit.show', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(20, 'ancestors')
+        ->assertJsonPath('ancestors.0.parent.id', $response->json('ancestors.0.parent_id'))
+        ->assertJsonMissingPath('ancestors.1.parent');
+});
+
+it('creates a commit from a signed request, pending review', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => '  It was DNS :tada:  ']);
+
+    $commit = $user->commits()->sole();
+
+    $response->assertCreated()
+        ->assertJsonPath('data.id', $commit->id)
+        ->assertJsonPath('data.body', 'It was DNS 🎉')
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.replies_count', 0)
+        ->assertJsonPath('data.stars_count', 0)
+        ->assertJsonPath('data.starred', false)
+        ->assertJsonPath('data.is_saved', false)
+        ->assertJsonPath('data.images', [])
+        ->assertJsonPath('data.author.id', $user->id)
+        ->assertJsonMissingPath('ancestors');
+
+    expect($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('publishes the commits of admins right away', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    config(['app.admins' => [$user->username]]);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'])
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'approved');
+});
+
+it('replies to a commit from a signed request', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $parent = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.', 'parent_id' => $parent->id])
+        ->assertCreated()
+        ->assertJsonPath('data.parent_id', $parent->id);
+
+    expect($user->commits()->sole()->parent_id)->toBe($parent->id);
+});
+
+it('validates a commit from a signed request', function (Closure $data, string $field, string $message): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), $data())
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse();
+})->with([
+    'missing body' => [fn (): array => [], 'body', 'The body field is required.'],
+    'too short' => [fn (): array => ['body' => '  ab  '], 'body', 'The body field must be at least 3 characters.'],
+    'too long' => [fn (): array => ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)], 'body', 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.'],
+    'parent that is not a uuid' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => 'abc'], 'parent_id', 'The parent id field must be a valid UUID.'],
+    'unknown parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => '0199e3a4-0000-7000-8000-000000000000'], 'parent_id', 'That commit is no longer available to reply to.'],
+    'hidden parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => Commit::factory()->pending()->create()->id], 'parent_id', 'That commit is no longer available to reply to.'],
+    'deleted parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => tap(Commit::factory()->create())->delete()->id], 'parent_id', 'That commit is no longer available to reply to.'],
+]);
+
+it('may not reply to a commit across a block, as on the web', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $parent = Commit::factory()->create();
+
+    $parent->user->blocking()->attach($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.', 'parent_id' => $parent->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+
+    expect($user->commits()->exists())->toBeFalse();
+});
+
+it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.']);
+
+    $response->assertCreated();
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->id === $response->json('data.id'));
+});
+
+it('collapses blank lines before measuring a body, like the web does', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => "It was DNS.\r\n\n\n\n\nIt always is."])
+        ->assertCreated()
+        ->assertJsonPath('data.body', "It was DNS.\n\nIt always is.");
+});
+
+it('counts each emoji as one character, like the web does', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => str_repeat('🚀', Commit::MAX_BODY_LENGTH)])
+        ->assertCreated();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => str_repeat('🚀', Commit::MAX_BODY_LENGTH + 1)])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['body' => 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.']);
+
+    expect($user->commits()->sole()->body)->toBe(str_repeat('🚀', Commit::MAX_BODY_LENGTH));
+});
+
+it('limits a signed-in user to 10 commits a minute, in json', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    foreach (range(1, 10) as $attempt) {
+        signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => "Commit {$attempt}"])->assertCreated();
+    }
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'One too many'])
+        ->assertTooManyRequests()
+        ->assertExactJson(['message' => 'Slow down: 10 commits a minute. Even CI takes breaks.', 'code' => 'rate_limited'])
+        ->assertHeader('Retry-After', '60');
+
+    expect($user->commits()->count())->toBe(10);
+});
+
+it('deletes a commit of the signed-in user', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = Commit::factory()->for($user)->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertNoContent();
+
+    $this->assertSoftDeleted($commit);
+});
+
+it('may not delete a commit that is already deleted', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $commit = tap(Commit::factory()->for($user)->create())->delete();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertNotFound();
+});
+
+it('may not delete the commits of others', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $commit = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-commit.destroy', $commit))->assertForbidden();
+
+    $this->assertNotSoftDeleted($commit);
+});
+
+it('rejects commits and deletes that are not signed', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->postJson(route('api-commit.store'), ['body' => 'It was DNS.'])->assertUnauthorized();
+    $this->deleteJson(route('api-commit.destroy', $commit))->assertUnauthorized();
+
+    expect(Commit::query()->count())->toBe(1);
+    $this->assertNotSoftDeleted($commit);
 });

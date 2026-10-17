@@ -9,13 +9,13 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
-use App\Queries\CommitBuilder;
+use App\Queries\PinnedCommitQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserCommitsQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -26,7 +26,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, UserCommitsQuery $commits, PinnedCommitQuery $pinned, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -52,30 +52,8 @@ final readonly class UserController
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
-                ->visibleTo($currentUser)
-                ->topLevel()
-                ->withVisibleReplyCount($currentUser)
-                ->withReplyPreviews($currentUser)
-                ->withCardDataFor($currentUser)
-                ->find($user->pinned_commit_id),
-            'commits' => Inertia::scroll(fn () => $user->commits()
-                ->visibleTo($currentUser)
-                ->when(
-                    $request->tab() === 'replies',
-                    fn (CommitBuilder $query): CommitBuilder => $query
-                        ->whereNotNull('parent_id')
-                        ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
-                            ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
-                            ->with('user')]),
-                    fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
-                        ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
-                )
-                ->withVisibleReplyCount($currentUser)
-                ->withReplyPreviews($currentUser)
-                ->withCardDataFor($currentUser)
-                ->latest()
-                ->latest('id')
+            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' ? null : $pinned->get($user, $currentUser),
+            'commits' => Inertia::scroll(fn () => $commits->builder($user, $currentUser, $request->tab() === 'replies')
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User ? null : $metadata->user($user->loadPublicCounts())]);
