@@ -1,5 +1,5 @@
-import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import type { InfiniteScrollRef } from '@inertiajs/core';
+import { Head, InfiniteScroll, Link, router } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
@@ -15,6 +15,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -23,6 +24,7 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import { index as sync } from '@/actions/App/Http/Controllers/NotificationSyncController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
@@ -33,6 +35,10 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import {
+    reconcileNotificationSync,
+    visibleNotificationGroupIds,
+} from '@/lib/notification-sync';
+import {
     cn,
     formatDayLabel,
     formatRelativeTime,
@@ -40,7 +46,13 @@ import {
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
+import type {
+    Auth,
+    CursorPaginated,
+    Notification,
+    NotificationGroup,
+    NotificationSyncResponse,
+} from '@/types';
 
 type Filters = {
     type:
@@ -51,6 +63,12 @@ type Filters = {
         | 'mentions'
         | 'follows'
         | 'moderation';
+};
+
+type NotificationPageProps = {
+    auth: Auth;
+    notifications: CursorPaginated<NotificationGroup>;
+    [key: string]: unknown;
 };
 
 const filterOptions: {
@@ -140,38 +158,197 @@ export default function Index({
     readAt: string;
 }) {
     const now = useNow();
-    const pollRequest = useRef<CancelToken | null>(null);
+    const pollRequest = useRef<AbortController | null>(null);
+    const pollPaused = useRef(false);
+    const syncGeneration = useRef(0);
     const filterNav = useRef<HTMLElement>(null);
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
-    const [arrivals, setArrivals] = useState(0);
-    const { start, stop } = usePoll(
-        30_000,
-        () => ({
-            only: ['notifications', 'auth.unreadNotificationsCount'],
-            reset: ['notifications'],
-            data: {
-                cursor: '',
-                through: notifications.data.at(-1)?.created_at,
-            },
-            preserveUrl: true,
-            preserveErrors: true,
-            onStart: () => {
-                pollAnchor.current = firstVisibleGroup(
-                    header.current,
-                    notifications.data,
-                );
-            },
-            onCancelToken: (token) => {
-                pollRequest.current = token;
-            },
-            onFinish: () => {
-                pollRequest.current = null;
-            },
-        }),
-        { mode: 'rest', background: 'pause' },
-    );
     const filterVisit = useRef(0);
+    const refreshRequiredRef = useRef(false);
+    const notificationScroll = useRef<InfiniteScrollRef>(null);
+    const [arrivals, setArrivals] = useState(0);
+    const [refreshRequired, setRefreshRequired] = useState(false);
+    const [scrollReset, setScrollReset] = useState(0);
+
+    const refreshInbox = () => {
+        const href = index({
+            query: filters.type === 'all' ? {} : { type: filters.type },
+        });
+        const visit = ++filterVisit.current;
+        syncGeneration.current++;
+        pollPaused.current = true;
+        pollRequest.current?.abort();
+        pollAnchor.current = null;
+        const finishRefresh = () => {
+            if (visit === filterVisit.current) {
+                setScrollReset((epoch) => epoch + 1);
+                refreshRequiredRef.current = false;
+                setRefreshRequired(false);
+                setArrivals(0);
+                window.scrollTo({ top: 0 });
+            }
+        };
+
+        router.visit(href, {
+            only: ['notifications', 'filters', 'readAt', 'auth'],
+            reset: ['notifications'],
+            preserveState: true,
+            onError: finishRefresh,
+            onSuccess: finishRefresh,
+            onFinish: () => {
+                if (visit === filterVisit.current) {
+                    pollPaused.current = false;
+                }
+            },
+        });
+    };
+
+    const applySync = useEffectEvent(
+        (response: NotificationSyncResponse, generation: number) => {
+            let reconciliation: ReturnType<
+                typeof reconcileNotificationSync
+            > | null = null;
+            const finishReconciliation = () => {
+                const result = reconciliation;
+
+                if (generation !== syncGeneration.current || result === null) {
+                    return;
+                }
+
+                if (result.refreshRequired) {
+                    setRefreshRequired(true);
+
+                    return;
+                }
+
+                if (result.paginationResetRequired) {
+                    refreshInbox();
+                }
+            };
+
+            router.replace<NotificationPageProps>({
+                preserveScroll: true,
+                preserveState: true,
+                props: (currentProps) => {
+                    if (generation !== syncGeneration.current) {
+                        return currentProps;
+                    }
+
+                    const auth = {
+                        ...currentProps.auth,
+                        unreadNotificationsCount:
+                            response.unread_notifications_count,
+                    };
+                    const result = reconcileNotificationSync(
+                        currentProps.notifications,
+                        response,
+                        refreshRequiredRef.current,
+                        notificationScroll.current?.hasNext() ?? false,
+                    );
+                    reconciliation = result;
+
+                    if (result.refreshRequired) {
+                        refreshRequiredRef.current = true;
+                    }
+
+                    if (
+                        result.refreshRequired ||
+                        result.paginationResetRequired
+                    ) {
+                        return { ...currentProps, auth };
+                    }
+
+                    pollAnchor.current = firstVisibleGroup(
+                        header.current,
+                        currentProps.notifications.data,
+                    );
+
+                    return {
+                        ...currentProps,
+                        auth,
+                        notifications: result.notifications,
+                    };
+                },
+                onError: finishReconciliation,
+                onSuccess: finishReconciliation,
+            });
+        },
+    );
+
+    useEffect(() => {
+        const lifecycle = new AbortController();
+        const generationRef = syncGeneration;
+        let running = false;
+
+        const poll = async () => {
+            if (document.hidden || running || pollPaused.current) {
+                return;
+            }
+
+            const generation = syncGeneration.current;
+            const request = new AbortController();
+            const visible = visibleNotificationGroupIds(
+                document.querySelectorAll<HTMLElement>(
+                    '[data-notification-group]',
+                ),
+                header.current?.getBoundingClientRect().bottom ?? 0,
+                window,
+            );
+            const query = {
+                visible,
+                ...(filters.type === 'all' ? {} : { type: filters.type }),
+            };
+            running = true;
+            pollRequest.current = request;
+
+            try {
+                const result = await fetch(sync.url({ query }), {
+                    headers: { Accept: 'application/json' },
+                    cache: 'no-store',
+                    signal: AbortSignal.any([
+                        lifecycle.signal,
+                        request.signal,
+                        AbortSignal.timeout(10_000),
+                    ]),
+                });
+
+                if (!result.ok) {
+                    return;
+                }
+
+                const response =
+                    (await result.json()) as NotificationSyncResponse;
+
+                if (
+                    !lifecycle.signal.aborted &&
+                    !request.signal.aborted &&
+                    !pollPaused.current &&
+                    generation === syncGeneration.current
+                ) {
+                    applySync(response, generation);
+                }
+            } catch {
+                // Keep the last good inbox until the next interval.
+            } finally {
+                if (pollRequest.current === request) {
+                    pollRequest.current = null;
+                }
+
+                running = false;
+            }
+        };
+
+        const interval = window.setInterval(() => void poll(), 30_000);
+
+        return () => {
+            generationRef.current++;
+            window.clearInterval(interval);
+            lifecycle.abort();
+            pollRequest.current?.abort();
+        };
+    }, [filters.type]);
+
     const filterLink = (type: Filters['type']) => {
         const href = index({ query: type === 'all' ? {} : { type } });
 
@@ -190,18 +367,28 @@ export default function Index({
 
                 event.preventDefault();
                 const visit = ++filterVisit.current;
-                stop();
-                pollRequest.current?.cancel();
+                syncGeneration.current++;
+                pollPaused.current = true;
+                pollRequest.current?.abort();
                 pollAnchor.current = null;
                 setArrivals(0);
+                const finishNavigation = () => {
+                    if (visit === filterVisit.current) {
+                        setScrollReset((epoch) => epoch + 1);
+                        refreshRequiredRef.current = false;
+                        setRefreshRequired(false);
+                    }
+                };
                 router.visit(href, {
                     only: ['notifications', 'filters', 'auth'],
                     reset: ['notifications'],
                     preserveState: true,
                     viewTransition: true,
+                    onError: finishNavigation,
+                    onSuccess: finishNavigation,
                     onFinish: () => {
                         if (visit === filterVisit.current) {
-                            start();
+                            pollPaused.current = false;
                         }
                     },
                 });
@@ -303,23 +490,36 @@ export default function Index({
                         );
                     })}
                 </nav>
-                {arrivals > 0 && (
+                {(refreshRequired || arrivals > 0) && (
                     <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
                             type="button"
-                            onClick={() => {
-                                setArrivals(0);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
+                            onClick={
+                                refreshRequired
+                                    ? refreshInbox
+                                    : () => {
+                                          setArrivals(0);
+                                          window.scrollTo({
+                                              top: 0,
+                                              behavior: 'smooth',
+                                          });
+                                      }
+                            }
                             className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp aria-hidden className="size-4" />
-                            <span className="tabular-nums">
-                                {arrivals}
-                            </span>{' '}
-                            {arrivals === 1
-                                ? 'new notification'
-                                : 'new notifications'}
+                            {refreshRequired ? (
+                                'New notifications'
+                            ) : (
+                                <>
+                                    <span className="tabular-nums">
+                                        {arrivals}
+                                    </span>{' '}
+                                    {arrivals === 1
+                                        ? 'new notification'
+                                        : 'new notifications'}
+                                </>
+                            )}
                         </button>
                     </div>
                 )}
@@ -347,6 +547,8 @@ export default function Index({
             ) : (
                 <>
                     <InfiniteScroll
+                        key={scrollReset}
+                        ref={notificationScroll}
                         data="notifications"
                         onlyNext
                         preserveUrl

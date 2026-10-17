@@ -30,77 +30,48 @@ it('polls only the unread count outside the inbox without acknowledging activity
     expect($notice->refresh()->read_at)->toBeNull();
 });
 
-it('refreshes the entire loaded inbox window without losing older pages', function (): void {
+it('keeps a legacy inbox refresh query to one fixed page', function (): void {
     $user = User::factory()->create();
-    $notices = collect();
-    for ($index = 1; $index <= 62; $index++) {
-        $notices->push(Notification::factory()->for($user, 'recipient')->replied()->create([
-            'created_at' => now()->subMinutes($index),
-        ]));
-    }
+    $notices = collect(range(1, 62))->map(fn (int $minutes): Notification => Notification::factory()
+        ->for($user, 'recipient')
+        ->replied()
+        ->create(['created_at' => now()->subMinutes($minutes)]));
 
-    $new = Notification::factory()->for($user, 'recipient')->create();
-    $through = $notices[39]->created_at->toJSON();
-    $response = $this->actingAs($user)->withHeaders([
+    $this->actingAs($user)
+        ->get(route('notification.index', ['through' => $notices[39]->created_at->toJSON()]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', NotificationGroupsQuery::PER_PAGE)
+            ->where('notifications.data.0.id', $notices[0]->id)
+            ->where('notifications.next_page_url', fn (string $url): bool => ! str_contains($url, 'through')));
+});
+
+it('marks an explicit page-one inbox visit as an infinite-scroll reset', function (): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->count(21)->replied()->create();
+
+    $this->actingAs($user)->withHeaders([
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'notification/index',
-        'X-Inertia-Partial-Data' => 'notifications,auth.unreadNotificationsCount',
+        'X-Inertia-Partial-Data' => 'notifications,filters,readAt,auth',
         'X-Inertia-Reset' => 'notifications',
-    ])->get(route('notification.index', ['through' => $through]))->assertOk()
-        ->assertJsonCount(41, 'props.notifications.data')
-        ->assertJsonPath('props.notifications.data.0.id', $new->id)
-        ->assertJsonPath('props.notifications.data.40.id', $notices[39]->id)
-        ->assertJsonPath('props.auth.unreadNotificationsCount', 0)
-        ->assertJsonMissingPath('props.auth.user');
-
-    expect($new->refresh()->read_at)->not->toBeNull();
-    $this->get($response->json('props.notifications.next_page_url'))
-        ->assertJsonCount(20, 'props.notifications.data')
-        ->assertJsonPath('props.notifications.data.0.id', $notices[40]->id);
+    ])->get(route('notification.index'))->assertOk()
+        ->assertJsonCount(NotificationGroupsQuery::PER_PAGE, 'props.notifications.data')
+        ->assertJsonPath('scrollProps.notifications.reset', true);
 });
 
-it('rejects an invalid inbox refresh boundary without reading notifications', function (): void {
+it('forces a stale notification client to reload before it can reuse the retired poll contract', function (): void {
     $user = User::factory()->create();
-    $notice = Notification::factory()->for($user, 'recipient')->create();
+    $notification = Notification::factory()->for($user, 'recipient')->create();
+    $url = route('notification.index', ['through' => $notification->created_at->toJSON()]);
 
-    $this->actingAs($user)->getJson(route('notification.index', ['through' => 'invalid']))
-        ->assertUnprocessable()->assertJsonValidationErrors('through');
-    expect($notice->refresh()->read_at)->toBeNull();
-});
-
-it('polls fresh filtered groups and excludes activity that is no longer relevant', function (): void {
-    $user = User::factory()->create();
-    $root = Commit::factory()->for($user)->create();
-    $oldReply = Commit::factory()->for($root, 'parent')->create();
-    $old = Notification::factory()->for($user, 'recipient')->for($oldReply, 'commit')->create([
-        'type' => NotificationType::Replied, 'created_at' => now()->subMinutes(40),
-    ]);
-    $otherGroup = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(10)]);
-    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))->assertOk();
-
-    $latestReply = Commit::factory()->for($root, 'parent')->create();
-    $latest = Notification::factory()->for($user, 'recipient')->for($latestReply, 'commit')->create(['type' => NotificationType::Replied]);
-    $follow = Notification::factory()->for($user, 'recipient')->create();
-    $otherGroup->commit->update(['status' => CommitStatus::Pending]);
-    $other = Notification::factory()->create();
-
-    $this->withHeaders([
+    $this->actingAs($user)->withHeaders([
         'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-        'X-Inertia-Partial-Component' => 'notification/index',
-        'X-Inertia-Partial-Data' => 'notifications,auth.unreadNotificationsCount',
-        'X-Inertia-Reset' => 'notifications',
-    ])->get(route('notification.index', ['type' => 'replies', 'through' => $old->created_at->toJSON()]))
-        ->assertOk()->assertJsonCount(1, 'props.notifications.data')
-        ->assertJsonPath('props.notifications.data.0.id', $latest->id)
-        ->assertJsonPath('props.notifications.data.0.group_id', $old->id)
-        ->assertJsonPath('props.notifications.data.0.event_count', 2)
-        ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
-
-    expect($latest->refresh()->read_at)->not->toBeNull()
-        ->and($follow->refresh()->read_at)->not->toBeNull()
-        ->and($other->refresh()->read_at)->toBeNull();
+        'X-Inertia-Version' => 'stale-notification-client',
+    ])->get($url)
+        ->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', $url);
 });
 
 it('groups nested replies and mentions and bumps an old conversation using its latest event', function (): void {

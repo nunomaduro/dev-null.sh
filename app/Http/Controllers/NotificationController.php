@@ -20,7 +20,9 @@ final readonly class NotificationController
         $readAt = $action->handle($user);
 
         return Inertia::render('notification/index', [
-            'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->paginate($user, $request->type(), $request->through()))->matchOn('data.group_id'),
+            'notifications' => Inertia::scroll(
+                fn (): CursorPaginator => $query->paginate($user, $request->type()),
+            )->matchOn('data.group_id'),
             'filters' => ['type' => $request->type()],
             'readAt' => $readAt->toJSON(),
         ]);

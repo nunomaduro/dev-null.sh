@@ -7,11 +7,13 @@ use App\Actions\CreateReplyNotifications;
 use App\Actions\CreateUserFollow;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
+use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 
 function starAt(User $user, Commit $commit, int $minutesAgo): void
@@ -214,23 +216,6 @@ it('counts the unread groups', function (): void {
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
 });
 
-it('loads every group refreshed since a point, including groups that began before it', function (): void {
-    $user = User::factory()->create();
-
-    Commit::factory()->for($user)->count(NotificationGroupsQuery::PER_PAGE + 2)->create()
-        ->each(function (Commit $commit, int $index): void {
-            starAt(User::factory()->create(), $commit, 1000 + $index);
-            starAt(User::factory()->create(), $commit, $index + 1);
-        });
-
-    $through = now()->subSeconds((NotificationGroupsQuery::PER_PAGE + 1) * 60 + 30)->toImmutable();
-    $groups = resolve(NotificationGroupsQuery::class)->paginate($user, through: $through);
-
-    expect($groups->items())->toHaveCount(NotificationGroupsQuery::PER_PAGE + 1)
-        ->and($groups->items()[0]->event_count)->toBe(2)
-        ->and($groups->hasMorePages())->toBeTrue();
-});
-
 it('counts unread groups that began before the oldest unread notification like grouping everything does', function (): void {
     $user = User::factory()->create();
     [$starred, $root] = Commit::factory()->for($user)->count(2)->create()->all();
@@ -333,3 +318,117 @@ it('compiles the grouping window for each database dialect with bound recipient 
     'MariaDB' => ['mariadb', 'TIMESTAMPDIFF(SECOND, previous_match_at, created_at)'],
     'PostgreSQL' => ['pgsql', 'EXTRACT(EPOCH FROM (created_at - previous_match_at))'],
 ]);
+
+it('builds a bounded sync head with visible refreshes and ordered tombstones', function (): void {
+    $user = User::factory()->create();
+    $groups = collect(range(1, 62))->map(fn (int $minutes): Notification => Notification::factory()
+        ->for($user, 'recipient')
+        ->replied()
+        ->create(['created_at' => now()->subMinutes($minutes)]));
+    $visible = $groups[30];
+    $hidden = $groups[40];
+    $hidden->commit->update(['status' => CommitStatus::Pending]);
+
+    $other = Notification::factory()->replied()->create();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $sync = resolve(NotificationGroupsQuery::class)->sync($user, visibleGroupIds: [
+        $groups[0]->id,
+        $groups[20]->id,
+        $visible->id,
+        $hidden->id,
+        $other->id,
+    ]);
+
+    expect($sync['head'])->toHaveCount(NotificationGroupsQuery::PER_PAGE)
+        ->and(array_map(fn (Notification $group): string => $group->id, $sync['head']))
+        ->toBe($groups->take(20)->pluck('id')->all())
+        ->and($sync['boundary'])->toBe([
+            'group_id' => $groups[20]->id,
+            'id' => $groups[20]->id,
+        ])
+        ->and(array_map(fn (Notification $group): string => $group->group_id, $sync['visible']))
+        ->toBe([$groups[20]->id, $visible->id])
+        ->and($sync['missing_visible_group_ids'])->toBe([$hidden->id, $other->id])
+        ->and($sync['head'][0]->relationLoaded('actor'))->toBeTrue()
+        ->and($sync['head'][0]->relationLoaded('commit'))->toBeTrue()
+        ->and($sync['head'][0]->relationLoaded('actors'))->toBeTrue()
+        ->and($sync['head'][0]->toArray())->not->toHaveKeys(['second_actor_id', 'third_actor_id'])
+        ->and(DB::getQueryLog())->toHaveCount(3);
+});
+
+it('uses a null sync boundary when the head contains the complete inbox', function (int $count): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->count($count)->replied()->create();
+
+    $sync = resolve(NotificationGroupsQuery::class)->sync($user);
+
+    expect($sync['head'])->toHaveCount($count)
+        ->and($sync['boundary'])->toBeNull()
+        ->and($sync['visible'])->toBe([])
+        ->and($sync['missing_visible_group_ids'])->toBe([]);
+})->with([0, 1, NotificationGroupsQuery::PER_PAGE]);
+
+it('moves an active old group into the sync head without changing its group id', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $oldReply = Commit::factory()->for($root, 'parent')->create();
+    $old = Notification::factory()->for($user, 'recipient')->for($oldReply, 'commit')->create([
+        'type' => NotificationType::Replied,
+        'created_at' => now()->subHour(),
+    ]);
+    Notification::factory()->for($user, 'recipient')->count(20)->replied()->create([
+        'created_at' => now()->subMinutes(30),
+    ]);
+    $latestReply = Commit::factory()->for($root, 'parent')->create();
+    $latest = Notification::factory()->for($user, 'recipient')->for($latestReply, 'commit')->create([
+        'type' => NotificationType::Replied,
+    ]);
+
+    $sync = resolve(NotificationGroupsQuery::class)->sync($user);
+
+    expect($sync['head'][0]->id)->toBe($latest->id)
+        ->and($sync['head'][0]->group_id)->toBe($old->id)
+        ->and($sync['head'][0]->event_count)->toBe(2);
+});
+
+it('selects head boundary and visible representatives from one statement snapshot', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $oldReply = Commit::factory()->for($root, 'parent')->create();
+    $old = Notification::factory()->for($user, 'recipient')->for($oldReply, 'commit')->create([
+        'type' => NotificationType::Replied,
+        'created_at' => now()->subMinutes(50),
+        'read_at' => now(),
+    ]);
+    Notification::factory()->for($user, 'recipient')->count(21)->replied()->read()->create([
+        'created_at' => now()->subMinutes(30),
+    ]);
+    $inserted = false;
+    /** @var Notification|null $late */
+    $late = null;
+
+    DB::listen(function (QueryExecuted $event) use ($user, $root, &$inserted, &$late): void {
+        if ($inserted || ! str_starts_with(mb_strtolower(mb_ltrim($event->sql)), 'select')) {
+            return;
+        }
+
+        $inserted = true;
+        $reply = Commit::factory()->for($root, 'parent')->create();
+        $late = Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create([
+            'type' => NotificationType::Replied,
+        ]);
+    });
+
+    $query = resolve(NotificationGroupsQuery::class);
+    $sync = $query->sync($user, visibleGroupIds: [$old->id]);
+
+    expect($late)->toBeInstanceOf(Notification::class);
+    assert($late instanceof Notification);
+    expect($sync['visible'])->toHaveCount(1)
+        ->and($sync['visible'][0]->id)->toBe($old->id)
+        ->and(collect($sync['head'])->pluck('id'))->not->toContain($late->id)
+        ->and($query->unreadCount($user))->toBe(1);
+});
