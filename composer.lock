@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b6471725427c5883fe29b3394a06f85c",
+    "content-hash": "afabaaa6859c51e9d2fe880ccf7d873c",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3521,6 +3521,159 @@
                 "source": "https://github.com/paragonie/constant_time_encoding"
             },
             "time": "2025-09-24T15:06:41+00:00"
+        },
+        {
+            "name": "php-tui/cassowary",
+            "version": "0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-tui/cassowary.git",
+                "reference": "903b1a23481bf487caf825f7feb93f7a81d56b9d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-tui/cassowary/zipball/903b1a23481bf487caf825f7feb93f7a81d56b9d",
+                "reference": "903b1a23481bf487caf825f7feb93f7a81d56b9d",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.34",
+                "phpbench/phpbench": "^1.2",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^10.4",
+                "symfony/var-dumper": "^6.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "PhpTui\\Cassowary\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniel Leech"
+                }
+            ],
+            "description": "PHP TUI",
+            "support": {
+                "issues": "https://github.com/php-tui/cassowary/issues",
+                "source": "https://github.com/php-tui/cassowary/tree/0.1.0"
+            },
+            "time": "2023-10-23T16:11:57+00:00"
+        },
+        {
+            "name": "php-tui/php-tui",
+            "version": "0.2.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-tui/php-tui.git",
+                "reference": "d4921c791f8f5b58606810916d0c3eb355db7dc7"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-tui/php-tui/zipball/d4921c791f8f5b58606810916d0c3eb355db7dc7",
+                "reference": "d4921c791f8f5b58606810916d0c3eb355db7dc7",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.1",
+                "php-tui/cassowary": "^0.1.0",
+                "php-tui/term": "^0.3.2"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.34",
+                "phpbench/phpbench": "^1.2",
+                "phpstan/extension-installer": "^1.3",
+                "phpstan/phpdoc-parser": "^1.24",
+                "phpstan/phpstan": "^1.10",
+                "phpstan/phpstan-deprecation-rules": "^1.1",
+                "phpstan/phpstan-phpunit": "^1.0",
+                "phpstan/phpstan-strict-rules": "^1.5",
+                "phpunit/phpunit": "^10.4",
+                "rector/rector": "^1.0",
+                "roave/better-reflection": "^6.15",
+                "symfony/var-dumper": "^6.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "PhpTui\\BDF\\": "lib/bdf/src",
+                    "PhpTui\\Tui\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniel Leech"
+                }
+            ],
+            "description": "Comprehensive TUI library heavily influenced by Ratatui",
+            "keywords": [
+                "cli",
+                "console",
+                "terminal",
+                "tui"
+            ],
+            "support": {
+                "issues": "https://github.com/php-tui/php-tui/issues",
+                "source": "https://github.com/php-tui/php-tui/tree/0.2.1"
+            },
+            "time": "2024-09-08T09:16:18+00:00"
+        },
+        {
+            "name": "php-tui/term",
+            "version": "0.3.4",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-tui/term.git",
+                "reference": "bf8bb01d5997c2b926637a7b436cb5beac6acde9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-tui/term/zipball/bf8bb01d5997c2b926637a7b436cb5beac6acde9",
+                "reference": "bf8bb01d5997c2b926637a7b436cb5beac6acde9",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.34",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^10.4",
+                "symfony/var-dumper": "^6.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "PhpTui\\Term\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniel Leech"
+                }
+            ],
+            "description": "comprehensive low level terminal control",
+            "support": {
+                "issues": "https://github.com/php-tui/term/issues",
+                "source": "https://github.com/php-tui/term/tree/0.3.4"
+            },
+            "time": "2023-12-04T18:42:32+00:00"
         },
         {
             "name": "phpoption/phpoption",
@@ -14920,5 +15073,5 @@
         "php": "^8.5.0"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

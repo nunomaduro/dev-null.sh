@@ -24,8 +24,14 @@ pest()->extend(TestCase::class)
         Http::preventStrayRequests();
         Process::preventStrayProcesses();
         Sleep::fake();
+        config(['services.openai.key' => null]);
 
         $this->freezeTime();
+    })
+    ->afterEach(function (): void {
+        if (defined('STDIN') && is_resource(STDIN)) {
+            stream_set_blocking(STDIN, true);
+        }
     })
     ->in('Feature', 'Unit');
 
