@@ -28,6 +28,7 @@ test('to array', function (): void {
             'root_id',
             'hot_score',
             'pasteis_count',
+            'gif',
             'body_segments',
             'preview_segments',
         ]);
@@ -402,4 +403,31 @@ it('never shows the images of a deleted commit in its tombstone', function (): v
     $tombstone = Commit::withTrashed()->with('images')->findOrFail($commit->id);
 
     expect($tombstone->toArray())->not->toHaveKey('images');
+});
+
+it('serializes an attached gif as one object and hides the raw columns', function (): void {
+    $commit = Commit::factory()->withGiphy()->create();
+
+    $payload = $commit->toArray();
+
+    expect($payload['gif'])->toBe([
+        'id' => 'xT9IgzoKnwFNmISR8I',
+        'url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123',
+        'page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'title' => 'Deal With It GIF',
+        'username' => 'giphy',
+        'width' => 480,
+        'height' => 270,
+    ])->and(array_keys($payload))->each->not->toStartWith('giphy_');
+});
+
+it('serializes the gif of a plain commit as null', function (): void {
+    expect(Commit::factory()->create()->toArray()['gif'])->toBeNull();
+});
+
+it('leaves the gif out of a tombstone', function (): void {
+    $commit = Commit::factory()->withGiphy()->create();
+    $commit->delete();
+
+    expect($commit->fresh()?->toArray())->not->toHaveKey('gif');
 });

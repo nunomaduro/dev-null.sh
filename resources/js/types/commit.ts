@@ -46,6 +46,16 @@ export type CommitImage = {
     description: string | null;
 };
 
+export type CommitGif = {
+    id: string;
+    url: string;
+    page_url: string;
+    title: string | null;
+    username: string | null;
+    width: number | null;
+    height: number | null;
+};
+
 export type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'code'; code: string }
@@ -78,6 +88,7 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
+    gif?: CommitGif | null;
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
 };

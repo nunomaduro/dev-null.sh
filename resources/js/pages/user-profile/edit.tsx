@@ -4,6 +4,7 @@ import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
+import { GiphyKeySetting } from '@/components/giphy-key-setting';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
@@ -45,12 +46,14 @@ export default function Edit({
     preferredLane,
     automaticLane,
     githubSyncedAt,
+    giphyConnected,
     activityGraphUrl,
     profileUrl,
 }: {
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
+    giphyConnected: boolean;
     activityGraphUrl: string;
     profileUrl: string;
 }) {
@@ -131,6 +134,8 @@ export default function Edit({
             <TimezonePicker />
 
             <PasteisModeSetting />
+
+            <GiphyKeySetting giphyConnected={giphyConnected} />
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}

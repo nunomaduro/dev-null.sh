@@ -25,7 +25,7 @@ final readonly class UpdateCommitAiDecision
     }
 
     /**
-     * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
+     * Asks the AI whether the commit, images and GIF included, should be approved. The decision is mostly a hint for
      * moderators: a clean commit is approved when its author already has an approved commit, and it is rejected,
      * without a reason, when the AI is all but certain. Failures, such as timeouts or rate limits, are thrown, so the
      * caller can try again later.
@@ -35,6 +35,10 @@ final readonly class UpdateCommitAiDecision
         $images = array_values($commit->images->map(
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
+
+        if ($commit->giphy_url !== null) {
+            $images[] = $commit->giphy_url;
+        }
 
         $scores = $this->openAI->moderate($commit->body, $images);
 

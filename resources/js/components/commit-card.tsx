@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitGiphy } from '@/components/commit-giphy';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -304,6 +305,9 @@ export function CommitCard({
                                 )}
                             />
                             {showImages && <CommitImages commit={commit} />}
+                            {showImages && commit.gif && (
+                                <CommitGiphy gif={commit.gif} />
+                            )}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}

@@ -45,6 +45,11 @@ final class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'giphy' => fn (): ?array => (function () use ($request): ?array {
+                $key = $request->user()?->giphy_key;
+
+                return is_string($key) && $key !== '' ? ['key' => $key] : null;
+            })(),
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,

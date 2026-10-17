@@ -59,4 +59,11 @@ final class UserFactory extends Factory
             'company' => null,
         ]);
     }
+
+    public function withGiphyKey(string $key = 'giphy-test-key'): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'giphy_key' => $key,
+        ]);
+    }
 }

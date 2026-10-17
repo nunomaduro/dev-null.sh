@@ -256,6 +256,16 @@ final readonly class PageMetadata
             ];
         }
 
+        if ($commit->giphy_url !== null) {
+            $images[] = [
+                'url' => $commit->giphy_url,
+                'width' => (int) $commit->giphy_width,
+                'height' => (int) $commit->giphy_height,
+                'type' => 'image/gif',
+                'alt' => $commit->giphy_title ?? "GIF attached to the commit of {$user->nameWithHandle()}",
+            ];
+        }
+
         return $images;
     }
 

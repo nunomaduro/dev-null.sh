@@ -13,14 +13,17 @@ const draft = {
     body: 'A restored quote',
     images: [image],
     descriptions: ['A restored screenshot'],
+    gif: null,
     isRestored: true,
     updateBody: vi.fn(),
     updateImages,
+    updateGif: vi.fn(),
     drop,
 };
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: () => {},
     useMemo: (factory: () => unknown) => factory(),
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
         snapshot(),

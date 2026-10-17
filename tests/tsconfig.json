@@ -7,6 +7,10 @@
     "include": [
         "Unit/**/*.test.ts",
         "Unit/DraftStash.test.tsx",
-        "draft-images.config.ts"
+        "Unit/CommitGiphy.test.tsx",
+        "Unit/GiphyKeySetting.test.tsx",
+        "draft-images.config.ts",
+        "commit-giphy.config.ts",
+        "giphy-key.config.ts"
     ]
 }

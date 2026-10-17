@@ -395,3 +395,16 @@ it('also limits exports to five a minute per user independently of the hourly bu
 
     $this->actingAs($user)->get(route('export'))->assertOk();
 });
+
+it('never exports the giphy key', function (): void {
+    $user = User::factory()->withGiphyKey('giphy-test-key')->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+
+    $response->assertOk();
+
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['profile'])->not->toHaveKey('giphy_key')
+        ->and($response->streamedContent())->not->toContain('giphy-test-key');
+});

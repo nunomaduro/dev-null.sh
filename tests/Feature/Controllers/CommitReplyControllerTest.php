@@ -871,3 +871,52 @@ it('lists the newest reply with a cursor to older replies when requested', funct
     $second->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('next_cursor', null);
     expect($second->json('data.*.id'))->toBe(array_slice($expected, 1));
 });
+
+it('may attach a giphy gif to a reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Replying with a gif',
+        'giphy_id' => 'xT9IgzoKnwFNmISR8I',
+        'giphy_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'giphy_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'giphy_width' => 480,
+        'giphy_height' => 270,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->giphy_id)->toBe('xT9IgzoKnwFNmISR8I');
+});
+
+it('rejects a reply gif alongside uploaded images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Both at once',
+        'images' => [UploadedFile::fake()->image('cabin.jpg', 40, 30)],
+        'giphy_id' => 'xT9IgzoKnwFNmISR8I',
+        'giphy_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'giphy_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'giphy_width' => 480,
+        'giphy_height' => 270,
+    ])->assertSessionHasErrors('giphy_id');
+});
+
+it('rejects a bad gif media url on a reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Nice try',
+        'giphy_id' => 'xT9IgzoKnwFNmISR8I',
+        'giphy_url' => 'https://evil.example/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'giphy_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'giphy_width' => 480,
+        'giphy_height' => 270,
+    ])->assertSessionHasErrors('giphy_url');
+});

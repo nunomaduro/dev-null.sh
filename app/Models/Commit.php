@@ -35,6 +35,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
+ * @property-read string|null $giphy_id
+ * @property-read string|null $giphy_url
+ * @property-read string|null $giphy_page_url
+ * @property-read string|null $giphy_title
+ * @property-read string|null $giphy_username
+ * @property-read int|null $giphy_width
+ * @property-read int|null $giphy_height
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -58,6 +65,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_decision',
     'ai_categories',
     'embedding',
+    'giphy_id',
+    'giphy_url',
+    'giphy_page_url',
+    'giphy_title',
+    'giphy_username',
+    'giphy_width',
+    'giphy_height',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -107,6 +121,13 @@ final class Commit extends Model
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
+            'giphy_id' => 'string',
+            'giphy_url' => 'string',
+            'giphy_page_url' => 'string',
+            'giphy_title' => 'string',
+            'giphy_username' => 'string',
+            'giphy_width' => 'integer',
+            'giphy_height' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -127,7 +148,7 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body)];
+        return [...parent::toArray(), 'gif' => $this->gif(), ...resolve(CommitBodies::class)->segments($this->body)];
     }
 
     /**
@@ -250,6 +271,28 @@ final class Commit extends Model
         }
 
         return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin());
+    }
+
+    /**
+     * The attached GIPHY GIF, hotlinked by its media URL exactly as GIPHY's API returned it.
+     *
+     * @return array{id: string, url: string, page_url: string, title: string|null, username: string|null, width: int|null, height: int|null}|null
+     */
+    public function gif(): ?array
+    {
+        if ($this->giphy_id === null || $this->giphy_url === null || $this->giphy_page_url === null) {
+            return null;
+        }
+
+        return [
+            'id' => $this->giphy_id,
+            'url' => $this->giphy_url,
+            'page_url' => $this->giphy_page_url,
+            'title' => $this->giphy_title,
+            'username' => $this->giphy_username,
+            'width' => $this->giphy_width,
+            'height' => $this->giphy_height,
+        ];
     }
 
     /**

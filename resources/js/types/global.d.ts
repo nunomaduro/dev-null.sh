@@ -17,6 +17,7 @@ declare module '@inertiajs/core' {
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
+            giphy: { key: string } | null;
             suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;
         };

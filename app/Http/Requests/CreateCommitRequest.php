@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Dto\Giphy;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
+use App\Rules\GiphyMediaUrl;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
 use App\Services\Urls;
@@ -63,6 +65,13 @@ final class CreateCommitRequest extends FormRequest
             ],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            'giphy_id' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9]+$/', 'prohibits:images,poll', 'required_with:giphy_url'],
+            'giphy_url' => ['nullable', 'string', 'max:2048', 'required_with:giphy_id', new GiphyMediaUrl],
+            'giphy_page_url' => ['nullable', 'string', 'max:2048', 'required_with:giphy_id', 'url:https', 'regex:#^https://(www\.)?giphy\.com/#'],
+            'giphy_title' => ['nullable', 'string', 'max:300'],
+            'giphy_username' => ['nullable', 'string', 'max:100'],
+            'giphy_width' => ['nullable', 'integer', 'min:1', 'max:10000', 'required_with:giphy_id'],
+            'giphy_height' => ['nullable', 'integer', 'min:1', 'max:10000', 'required_with:giphy_id'],
         ];
     }
 
@@ -161,6 +170,23 @@ final class CreateCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function giphy(): ?Giphy
+    {
+        if (! $this->filled('giphy_id')) {
+            return null;
+        }
+
+        return new Giphy(
+            $this->string('giphy_id')->value(),
+            $this->string('giphy_url')->value(),
+            $this->string('giphy_page_url')->value(),
+            $this->filled('giphy_title') ? $this->string('giphy_title')->value() : null,
+            $this->filled('giphy_username') ? $this->string('giphy_username')->value() : null,
+            $this->integer('giphy_width'),
+            $this->integer('giphy_height'),
+        );
     }
 
     public function prepareForValidation(): void

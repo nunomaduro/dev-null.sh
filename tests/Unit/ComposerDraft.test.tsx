@@ -3,19 +3,33 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
+import type { GiphyAttachment } from '../../resources/js/lib/giphy';
 
 const image = new File(['restored'], 'draft.png', { type: 'image/png' });
+const gif: GiphyAttachment = {
+    id: 'xT9IgzoKnwFNmISR8I',
+    url: 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc',
+    page_url: 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+    title: 'Deal With It GIF',
+    username: 'giphy',
+    width: 480,
+    height: 270,
+};
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
     body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
+    gif: null as GiphyAttachment | null,
     isRestored: true,
     updateBody: vi.fn(),
     updateImages: vi.fn((images: File[], descriptions: string[]) => {
         draft.images = images;
         draft.descriptions = descriptions;
+    }),
+    updateGif: vi.fn((picked: GiphyAttachment | null) => {
+        draft.gif = picked;
     }),
     drop: vi.fn(),
 };
@@ -23,7 +37,7 @@ const user = { id: 'viewer', username: 'viewer', lane: 1 };
 
 vi.doMock('react', () => ({
     ...React,
-    useEffect: () => {},
+    useEffect: (effect: () => void) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -51,7 +65,12 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({
+        props: {
+            auth: { user, isAdmin: false },
+            giphy: { key: 'test' },
+        },
+    }),
     useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -67,6 +86,8 @@ const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
 const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
+const { GiphyPickerButton } =
+    await import('../../resources/js/components/giphy-picker-button');
 const { ComposerPreviewBody, PreviewToggle } =
     await import('../../resources/js/components/composer-preview');
 const { MentionTextarea } =
@@ -112,6 +133,7 @@ beforeEach(() => {
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
+    draft.gif = null;
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {
@@ -409,5 +431,122 @@ test('previews restored images and descriptions while keeping them attached when
         body: draft.body,
         images: [image],
         image_descriptions: ['A restored screenshot'],
+    });
+});
+
+test('picking a gif clears attached images and any poll and submits the giphy fields', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    let view = render();
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (
+            view.fields.find(
+                (element) =>
+                    element.props['data-test'] === 'add-poll-button',
+            )!.props.onClick as () => void
+        )();
+        view = render();
+        assert.equal(
+            view.fields.some((element) => element.type === PollEditor),
+            true,
+        );
+        const giphyButton = view.fields.find(
+            (element) => element.type === GiphyPickerButton,
+        )!;
+        (giphyButton.props.onPick as (picked: GiphyAttachment) => void)(gif);
+        assert.deepEqual(draft.images, []);
+        assert.deepEqual(draft.descriptions, []);
+        assert.equal(draft.gif, gif);
+        view = render();
+        assert.equal(
+            view.fields.some((element) => element.type === PollEditor),
+            false,
+        );
+        assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+            body: draft.body,
+            giphy_id: 'xT9IgzoKnwFNmISR8I',
+            giphy_url:
+                'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc',
+            giphy_page_url:
+                'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+            giphy_title: 'Deal With It GIF',
+            giphy_username: 'giphy',
+            giphy_width: 480,
+            giphy_height: 270,
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('attaching images while a gif is stashed clears the gif and submits the images instead', () => {
+    draft.updateGif(gif);
+    let view = render();
+    const schedule = view.fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, true);
+    assert.equal(
+        schedule.props.title,
+        "A commit with a GIF can't be scheduled yet",
+    );
+    (
+        view.fields.find((element) => element.type === ImagePickerButton)!
+            .props.onPick as (files: File[]) => void
+    )([image]);
+    assert.equal(draft.gif, null);
+    view = render();
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        images: [image],
+        image_descriptions: [''],
+    });
+});
+
+test('a stashed gif never survives alongside restored images', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    draft.updateGif(gif);
+    const view = render();
+    assert.deepEqual(draft.updateGif.mock.lastCall, [null]);
+    assert.equal(draft.gif, null);
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+});
+
+test('a gif stashed while scheduling blocks submit and never reaches the transform', () => {
+    let view = render();
+    (
+        view.fields.find(
+            (element) => element.props['aria-controls'] === 'body-schedule',
+        )!.props.onClick as () => void
+    )();
+    view = render();
+    const date = '2026-10-17T10:30';
+    const setCustomValidity = vi.fn();
+    (
+        view.fields.find((element) => element.props.id === 'body-scheduled-at')!
+            .props.onChange as (event: unknown) => void
+    )({
+        target: { value: date, setCustomValidity },
+    });
+    view = render();
+    draft.updateGif(gif);
+    view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        true,
+    );
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        scheduled_at: new Date(date)
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
     });
 });

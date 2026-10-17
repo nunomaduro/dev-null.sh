@@ -389,3 +389,21 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
     expect(fn () => dispatch_sync(new ModerateCommit($commit)))->toThrow(RequestException::class)
         ->and($commit->refresh()->ai_decision)->toBeNull();
 });
+
+it('moderates an attached gif by its giphy url', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->withGiphy()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'moderations')
+        && str_contains($request->body(), 'media2.giphy.com'));
+
+    // The minors check runs because the commit has an image URL (the gif):
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'responses')
+        && str_contains($request->body(), 'media2.giphy.com'));
+});

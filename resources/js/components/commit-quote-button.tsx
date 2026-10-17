@@ -1,7 +1,7 @@
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BodyCounter } from '@/components/body-counter';
 import {
@@ -10,6 +10,8 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { GiphyAttachmentPreview } from '@/components/giphy-attachment-preview';
+import { GiphyPickerButton } from '@/components/giphy-picker-button';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -29,6 +31,7 @@ import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import { giphyFormFields } from '@/lib/giphy';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -109,15 +112,23 @@ function QuoteComposer({
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, id);
     const attachments = useImageAttachments(images, descriptions, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const isQuotable =
         images.length > 0 || characterCount(body.trim()) >= minBodyLength;
@@ -163,13 +174,15 @@ function QuoteComposer({
                 errorBag="quote"
                 onBefore={secrets.beforeSubmit}
                 transform={(data) =>
-                    images.length > 0
-                        ? {
-                              ...data,
-                              images,
-                              image_descriptions: descriptions,
-                          }
-                        : data
+                    gif !== null
+                        ? { ...data, ...giphyFormFields(gif) }
+                        : images.length > 0
+                          ? {
+                                ...data,
+                                images,
+                                image_descriptions: descriptions,
+                            }
+                          : data
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
@@ -242,6 +255,10 @@ function QuoteComposer({
                                 onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
+                            <GiphyAttachmentPreview
+                                gif={gif}
+                                onRemove={() => updateGif(null)}
+                            />
                             <InputError
                                 message={
                                     attachments.error ?? imageErrorFrom(errors)
@@ -256,8 +273,20 @@ function QuoteComposer({
                                     <ImagePickerButton
                                         count={images.length}
                                         disabled={processing}
-                                        onPick={attachments.attach}
+                                        onPick={(files) => {
+                                            updateGif(null);
+                                            attachments.attach(files);
+                                        }}
                                         className="size-8"
+                                    />
+                                    <GiphyPickerButton
+                                        disabled={processing}
+                                        hasGif={gif !== null}
+                                        onPick={(picked) => {
+                                            attachments.clear();
+                                            updateGif(picked);
+                                        }}
+                                        className="-ml-2 size-8"
                                     />
                                     {isRestored && (
                                         <StashLabel

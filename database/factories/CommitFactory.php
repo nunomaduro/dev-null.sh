@@ -56,4 +56,17 @@ final class CommitFactory extends Factory
             'status' => CommitStatus::Rejected,
         ]);
     }
+
+    public function withGiphy(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'giphy_id' => 'xT9IgzoKnwFNmISR8I',
+            'giphy_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123',
+            'giphy_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+            'giphy_title' => 'Deal With It GIF',
+            'giphy_username' => 'giphy',
+            'giphy_width' => 480,
+            'giphy_height' => 270,
+        ]);
+    }
 }

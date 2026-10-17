@@ -188,3 +188,17 @@ it('requires authentication to sync', function (): void {
 
     Http::assertNothingSent();
 });
+
+it('renders whether a giphy key is connected', function (bool $connected): void {
+    $user = $connected
+        ? User::factory()->withGiphyKey()->create()
+        : User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('user-profile.edit'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user-profile/edit')
+            ->where('giphyConnected', $connected)
+            ->missing('auth.user.giphy_key'));
+})->with([true, false]);

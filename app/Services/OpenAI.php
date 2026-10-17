@@ -156,15 +156,15 @@ final readonly class OpenAI
      * scoring above our own, stricter thresholds. The text, if any, goes along with the first image, and every other
      * image is checked on its own, as a single request is only documented to take one image.
      *
-     * @param  list<string>  $imageDataUrls
+     * @param  list<string>  $imageUrls  data URLs or remote https URLs
      * @return array<string, float>
      */
-    public function moderate(string $text, array $imageDataUrls = []): array
+    public function moderate(string $text, array $imageUrls = []): array
     {
         $inputs = $text === '' ? [] : [[['type' => 'text', 'text' => $text]]];
 
-        foreach ($imageDataUrls as $index => $imageDataUrl) {
-            $image = ['type' => 'image_url', 'image_url' => ['url' => $imageDataUrl]];
+        foreach ($imageUrls as $index => $imageUrl) {
+            $image = ['type' => 'image_url', 'image_url' => ['url' => $imageUrl]];
 
             if ($index === 0 && $inputs !== []) {
                 $inputs[0][] = $image;
@@ -200,13 +200,13 @@ final readonly class OpenAI
      * Whether a minor may appear in any of the images. The moderation model can't tell, so a reasoning model is asked
      * instead. Anything but a clear no, such as a refusal or an answer that can't be read, counts as a yes.
      *
-     * @param  list<string>  $imageDataUrls
+     * @param  list<string>  $imageUrls  data URLs or remote https URLs
      */
-    public function showsMinors(array $imageDataUrls): bool
+    public function showsMinors(array $imageUrls): bool
     {
         return $this->ask('minors', self::MINORS_INSTRUCTIONS, array_map(
-            fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
-            $imageDataUrls,
+            fn (string $imageUrl): array => ['type' => 'input_image', 'image_url' => $imageUrl],
+            $imageUrls,
         ));
     }
 

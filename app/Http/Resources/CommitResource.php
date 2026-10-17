@@ -29,6 +29,7 @@ final class CommitResource extends JsonResource
             'replies_count' => $this->replies_count,
             'link_preview' => $this->linkPreview,
             'images' => $this->images,
+            'gif' => $this->gif(),
             'author' => UserResource::make($this->user),
         ];
     }

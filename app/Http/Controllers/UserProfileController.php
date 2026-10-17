@@ -19,6 +19,7 @@ final readonly class UserProfileController
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
+            'giphyConnected' => $user->giphy_key !== null,
             'activityGraphUrl' => route('user-activity-graph.show', $user),
             'profileUrl' => route('user.show', $user),
         ]);

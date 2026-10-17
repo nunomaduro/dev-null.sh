@@ -12,6 +12,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitGiphy } from '@/components/commit-giphy';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -27,6 +28,8 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { GiphyAttachmentPreview } from '@/components/giphy-attachment-preview';
+import { GiphyPickerButton } from '@/components/giphy-picker-button';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -49,6 +52,7 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
+import { giphyFormFields } from '@/lib/giphy';
 import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
@@ -939,9 +943,11 @@ function ReplyComposer({
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, `reply-${parent.id}`);
     const attachments = useImageAttachments(images, descriptions, updateImages);
@@ -953,6 +959,13 @@ function ReplyComposer({
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
+            giphy_id?: string;
+            giphy_url?: string;
+            giphy_page_url?: string;
+            giphy_title?: string;
+            giphy_username?: string;
+            giphy_width?: number;
+            giphy_height?: number;
         },
         CreatedReply
     >({
@@ -969,6 +982,12 @@ function ReplyComposer({
         textareaRef,
         isSubmittable: isReplyable,
     });
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const returnFocusToCommit = () => {
         const commit =
@@ -1007,8 +1026,9 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
-            images,
-            image_descriptions: descriptions,
+            images: gif === null ? images : [],
+            image_descriptions: gif === null ? descriptions : [],
+            ...(gif !== null ? giphyFormFields(gif) : {}),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1086,6 +1106,7 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            {preview.isPreviewing && gif !== null && <CommitGiphy gif={gif} />}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
@@ -1096,6 +1117,12 @@ function ReplyComposer({
                     descriptions={attachments.descriptions}
                     onDescribe={attachments.describe}
                     onRemove={attachments.remove}
+                />
+            )}
+            {!preview.isPreviewing && (
+                <GiphyAttachmentPreview
+                    gif={gif}
+                    onRemove={() => updateGif(null)}
                 />
             )}
             <SecretWarning
@@ -1117,8 +1144,20 @@ function ReplyComposer({
                     <ImagePickerButton
                         count={images.length}
                         disabled={processing}
-                        onPick={attachments.attach}
+                        onPick={(files) => {
+                            updateGif(null);
+                            attachments.attach(files);
+                        }}
                         className="size-8"
+                    />
+                    <GiphyPickerButton
+                        disabled={processing}
+                        hasGif={gif !== null}
+                        onPick={(picked) => {
+                            attachments.clear();
+                            updateGif(picked);
+                        }}
+                        className="-ml-2 size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker

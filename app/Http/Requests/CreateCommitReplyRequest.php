@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Dto\Giphy;
 use App\Models\Commit;
 use App\Models\User;
+use App\Rules\GiphyMediaUrl;
 use App\Services\Urls;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -58,6 +60,13 @@ final class CreateCommitReplyRequest extends FormRequest
             ],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            'giphy_id' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9]+$/', 'prohibits:images', 'required_with:giphy_url'],
+            'giphy_url' => ['nullable', 'string', 'max:2048', 'required_with:giphy_id', new GiphyMediaUrl],
+            'giphy_page_url' => ['nullable', 'string', 'max:2048', 'required_with:giphy_id', 'url:https', 'regex:#^https://(www\.)?giphy\.com/#'],
+            'giphy_title' => ['nullable', 'string', 'max:300'],
+            'giphy_username' => ['nullable', 'string', 'max:100'],
+            'giphy_width' => ['nullable', 'integer', 'min:1', 'max:10000', 'required_with:giphy_id'],
+            'giphy_height' => ['nullable', 'integer', 'min:1', 'max:10000', 'required_with:giphy_id'],
         ];
     }
 
@@ -112,5 +121,22 @@ final class CreateCommitReplyRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function giphy(): ?Giphy
+    {
+        if (! $this->filled('giphy_id')) {
+            return null;
+        }
+
+        return new Giphy(
+            $this->string('giphy_id')->value(),
+            $this->string('giphy_url')->value(),
+            $this->string('giphy_page_url')->value(),
+            $this->filled('giphy_title') ? $this->string('giphy_title')->value() : null,
+            $this->filled('giphy_username') ? $this->string('giphy_username')->value() : null,
+            $this->integer('giphy_width'),
+            $this->integer('giphy_height'),
+        );
     }
 }

@@ -1,10 +1,11 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { BodyCounter } from '@/components/body-counter';
+import { CommitGiphy } from '@/components/commit-giphy';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -17,6 +18,8 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { GiphyAttachmentPreview } from '@/components/giphy-attachment-preview';
+import { GiphyPickerButton } from '@/components/giphy-picker-button';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -39,6 +42,8 @@ import {
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import { giphyFormFields } from '@/lib/giphy';
+import type { GiphyAttachment } from '@/lib/giphy';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -112,10 +117,32 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
+    const isSchedulingGif = isScheduling && stash.gif !== null;
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
+    const pickGif = (gif: GiphyAttachment) => {
+        attachments.clear();
+        setPoll(null);
+        stash.updateGif(gif);
+    };
+    const handleScheduledAtChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+        setScheduledAt(value);
+        const date = new Date(value);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        event.target.setCustomValidity(
+            value && local !== value
+                ? 'This time does not exist in your timezone. Choose another time.'
+                : '',
+        );
+    };
+    const toggleScheduling = () => {
+        setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+        setIsScheduling(!isScheduling);
+    };
 
     return (
         <div
@@ -181,6 +208,10 @@ function CommitComposerBody({
                         )}
                     </div>
 
+                    {preview.isPreviewing && stash.gif !== null && (
+                        <CommitGiphy gif={stash.gif} />
+                    )}
+
                     <SecretWarning
                         body={body}
                         findings={secrets.findings}
@@ -201,8 +232,19 @@ function CommitComposerBody({
                             onRemove={attachments.remove}
                         />
                     )}
+                    {!preview.isPreviewing && (
+                        <GiphyAttachmentPreview
+                            gif={stash.gif}
+                            onRemove={() => stash.updateGif(null)}
+                        />
+                    )}
                     <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
+                        message={
+                            attachments.error ??
+                            (isSchedulingGif
+                                ? "GIFs can't be scheduled yet. Remove it to schedule this commit."
+                                : imageErrorFrom(errors))
+                        }
                         className="mt-1"
                     />
 
@@ -246,19 +288,7 @@ function CommitComposerBody({
                                 type="datetime-local"
                                 required
                                 value={scheduledAt}
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    setScheduledAt(value);
-                                    const date = new Date(value);
-                                    const pad = (n: number) =>
-                                        String(n).padStart(2, '0');
-                                    const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-                                    event.target.setCustomValidity(
-                                        value && local !== value
-                                            ? 'This time does not exist in your timezone. Choose another time.'
-                                            : '',
-                                    );
-                                }}
+                                onChange={handleScheduledAtChange}
                                 aria-describedby={`${id}-schedule-help ${id}-schedule-error`}
                                 aria-invalid={
                                     errors.scheduled_at ? true : undefined
@@ -296,17 +326,32 @@ function CommitComposerBody({
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 disabled={processing || poll !== null}
-                                onPick={attachments.attach}
+                                onPick={(files) => {
+                                    stash.updateGif(null);
+                                    attachments.attach(files);
+                                }}
                                 className="-ml-2"
                             />
+                            {!isScheduling && (
+                                <GiphyPickerButton
+                                    disabled={processing || poll !== null}
+                                    hasGif={stash.gif !== null}
+                                    onPick={pickGif}
+                                    className="-ml-3"
+                                />
+                            )}
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
                                 disabled={
-                                    processing || poll !== null || hasImages
+                                    processing ||
+                                    poll !== null ||
+                                    hasImages ||
+                                    stash.gif !== null
                                 }
                                 onClick={() => {
+                                    stash.updateGif(null);
                                     setPoll(emptyPollDraft);
                                     requestAnimationFrame(() =>
                                         document
@@ -320,7 +365,9 @@ function CommitComposerBody({
                                 title={
                                     hasImages
                                         ? 'A commit can have images or a poll, not both'
-                                        : 'Add poll'
+                                        : stash.gif !== null
+                                          ? 'A commit can have a GIF or a poll, not both'
+                                          : 'Add poll'
                                 }
                                 className="text-muted-foreground"
                                 data-test="add-poll-button"
@@ -352,14 +399,16 @@ function CommitComposerBody({
                             size="sm"
                             aria-expanded={isScheduling}
                             aria-controls={`${id}-schedule`}
-                            disabled={processing}
-                            onClick={() => {
-                                setTimezone(
-                                    Intl.DateTimeFormat().resolvedOptions()
-                                        .timeZone,
-                                );
-                                setIsScheduling(!isScheduling);
-                            }}
+                            disabled={
+                                processing ||
+                                (!isScheduling && stash.gif !== null)
+                            }
+                            title={
+                                !isScheduling && stash.gif !== null
+                                    ? "A commit with a GIF can't be scheduled yet"
+                                    : undefined
+                            }
+                            onClick={toggleScheduling}
                             className="gap-1.5 px-2 text-muted-foreground"
                         >
                             <Clock3 className="size-3.5" aria-hidden="true" />
@@ -430,9 +479,16 @@ export function CommitComposer({
     const isCommittable =
         (hasImages || characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
-            poll.options.every((option) => option.trim().length > 0));
+            poll.options.every((option) => option.trim().length > 0)) &&
+        !(isScheduling && stash.gif !== null);
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && stash.gif !== null) {
+            stash.updateGif(null);
+        }
+    }, [attachments.images.length, stash.gif, stash.updateGif]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && hasModKey(event) && isCommittable) {
@@ -453,6 +509,8 @@ export function CommitComposer({
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
                 }),
+                ...(stash.gif !== null &&
+                    !isScheduling && { ...giphyFormFields(stash.gif) }),
                 ...(isScheduling && {
                     scheduled_at: new Date(scheduledAt)
                         .toISOString()

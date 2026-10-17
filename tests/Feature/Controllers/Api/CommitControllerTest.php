@@ -33,6 +33,7 @@ it('shows an approved commit to anyone', function (): void {
             'replies_count' => 0,
             'link_preview' => null,
             'images' => [],
+            'gif' => null,
             'author' => [
                 'id' => $user->id,
                 'username' => 'octocat',
@@ -189,4 +190,22 @@ it('limits each address to 60 requests a minute', function (): void {
         ->assertHeader('Retry-After', 60);
 
     $this->getJson(route('api-commit.show', $commit), ['REMOTE_ADDR' => '10.0.0.2'])->assertOk();
+});
+
+it('includes the gif of a commit', function (): void {
+    $commit = Commit::factory()->withGiphy()->create();
+
+    $this->getJson("/api/v1/commits/{$commit->id}")
+        ->assertOk()
+        ->assertJsonPath('data.gif.id', 'xT9IgzoKnwFNmISR8I')
+        ->assertJsonPath('data.gif.url', 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123')
+        ->assertJsonPath('data.gif.width', 480);
+});
+
+it('includes a null gif for a plain commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->getJson("/api/v1/commits/{$commit->id}")
+        ->assertOk()
+        ->assertJsonPath('data.gif', null);
 });

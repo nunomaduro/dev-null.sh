@@ -232,3 +232,24 @@ it('knows who it blocks and who blocks it', function (): void {
         ->and($user->blocking->modelKeys())->toBe([$other->id])
         ->and($other->blockers->modelKeys())->toBe([$user->id]);
 });
+
+it('stores the giphy key encrypted and reads it back', function (): void {
+    $user = User::factory()->withGiphyKey('giphy-test-key')->create();
+
+    expect($user->refresh()->giphy_key)->toBe('giphy-test-key')
+        ->and(DB::table('users')->where('id', $user->id)->value('giphy_key'))
+        ->toBeString()
+        ->not->toBe('giphy-test-key')
+        ->not->toContain('giphy-test-key');
+});
+
+it('defaults the giphy key to null', function (): void {
+    expect(User::factory()->create()->refresh()->giphy_key)->toBeNull();
+});
+
+it('serializes no giphy key', function (): void {
+    $user = User::factory()->withGiphyKey()->create();
+
+    expect($user->toArray())->not->toHaveKey('giphy_key')
+        ->and($user->jsonSerialize())->not->toHaveKey('giphy_key');
+});
