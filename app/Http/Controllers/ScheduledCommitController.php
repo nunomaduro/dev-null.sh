@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
+use App\Actions\UpdateScheduledCommitScheduledAt;
 use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
+use App\Http\Requests\UpdateScheduledCommitRequest;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Services\CommitBodies;
@@ -46,6 +48,17 @@ final readonly class ScheduledCommitController
 
         Inertia::flash('scheduled', true);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Commit scheduled. Only you can see it until it is submitted.')]);
+
+        return back();
+    }
+
+    public function update(UpdateScheduledCommitRequest $request, #[CurrentUser] User $user, ScheduledCommit $scheduledCommit, UpdateScheduledCommitScheduledAt $action): RedirectResponse
+    {
+        $updated = $action->handle($user, $scheduledCommit, CarbonImmutable::parse($request->string('scheduled_at')->value())->utc());
+
+        Inertia::flash('toast', ['type' => $updated ? 'success' : 'info', 'message' => $updated
+            ? __('Commit rescheduled.')
+            : __('This commit was already submitted or canceled. Refresh to see its status.')]);
 
         return back();
     }

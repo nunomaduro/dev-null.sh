@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateScheduledCommitScheduledAt;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
@@ -16,6 +17,7 @@ use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
@@ -138,6 +140,7 @@ it('requires authentication for every scheduled endpoint', function (): void {
     $scheduled = ScheduledCommit::factory()->create();
     $this->get(route('scheduled-commit.index'))->assertRedirectToRoute('home');
     $this->post(route('scheduled-commit.store'), [])->assertRedirectToRoute('home');
+    $this->put(route('scheduled-commit.update', $scheduled), [])->assertRedirectToRoute('home');
     $this->delete(route('scheduled-commit.destroy', $scheduled))->assertRedirectToRoute('home');
 });
 
@@ -419,18 +422,21 @@ it('rolls back creation if saving the delivery receipt fails', function (): void
     $this->assertDatabaseCount('jobs', 1);
 });
 
-it('rejects a competing claim and cancellation while creation is in progress', function (): void {
+it('rejects a competing claim, cancellation and reschedule while creation is in progress', function (): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
     $competingClaim = null;
     $competingCancellation = null;
-    Commit::creating(function () use ($scheduled, &$competingClaim, &$competingCancellation): void {
+    $competingReschedule = null;
+    Commit::creating(function () use ($scheduled, &$competingClaim, &$competingCancellation, &$competingReschedule): void {
         $competingClaim = resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id);
         $competingCancellation = resolve(DeleteScheduledCommit::class)->handle($scheduled->user, $scheduled);
+        $competingReschedule = resolve(UpdateScheduledCommitScheduledAt::class)->handle($scheduled->user, $scheduled, CarbonImmutable::now()->addDay());
     });
     try {
         expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeTrue()
             ->and($competingClaim)->toBeFalse()
             ->and($competingCancellation)->toBeFalse()
+            ->and($competingReschedule)->toBeFalse()
             ->and(Commit::query()->count())->toBe(1);
     } finally {
         Commit::flushEventListeners();
@@ -461,6 +467,183 @@ it('paginates author receipts while keeping outstanding items first', function (
     $this->actingAs($user)->get(route('scheduled-commit.index'))->assertInertia(fn ($page) => $page
         ->has('scheduledCommits.data', 20)->where('scheduledCommits.data.0.id', $active->id)->has('scheduledCommits.next_page_url'));
 });
+
+it('reschedules only the submission time and stores an offset timestamp as UTC', function (): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    $original = $scheduled->only(['id', 'user_id', 'body', 'poll', 'images', 'link_preview_url', 'submitted_at', 'canceled_at', 'commit_id']);
+
+    $this->actingAs($scheduled->user)->from(route('scheduled-commit.index'))
+        ->put(route('scheduled-commit.update', $scheduled), [
+            'scheduled_at' => '2026-10-16T10:30:00+05:30',
+            'body' => 'Must not replace the draft.',
+            'poll' => ['options' => ['One', 'Two'], 'duration' => 1440],
+            'images' => [['path' => 'untrusted.webp']],
+            'link_preview_url' => 'https://example.com/untrusted',
+            'user_id' => User::factory()->create()->id,
+            'submitted_at' => now()->toIso8601String(),
+            'canceled_at' => now()->toIso8601String(),
+        ])->assertRedirectToRoute('scheduled-commit.index')->assertSessionHasNoErrors()
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Commit rescheduled.']);
+
+    expect($scheduled->fresh()->scheduled_at->toIso8601String())->toBe('2026-10-16T05:00:00+00:00')
+        ->and($scheduled->fresh()->only(array_keys($original)))->toBe($original)
+        ->and(ScheduledCommit::query()->count())->toBe(1)
+        ->and(Commit::query()->count())->toBe(0)
+        ->and(Notification::query()->count())->toBe(0);
+});
+
+it('forbids rescheduling another authors draft, including for administrators', function (bool $admin): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    $original = $scheduled->scheduled_at;
+    $viewer = User::factory()->create(['username' => $admin ? 'admin' : 'other']);
+
+    $this->actingAs($viewer)->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => now()->addHours(2)->toIso8601String(),
+    ])->assertForbidden();
+
+    expect($scheduled->fresh()->scheduled_at->equalTo($original))->toBeTrue()
+        ->and(resolve(UpdateScheduledCommitScheduledAt::class)->handle($viewer, $scheduled, CarbonImmutable::now()->addHours(2)))->toBeFalse();
+})->with([false, true]);
+
+it('rejects invalid reschedule times without changing the original time', function (mixed $time): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    $original = $scheduled->scheduled_at;
+
+    $this->actingAs($scheduled->user)->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => $time,
+    ])->assertSessionHasErrors('scheduled_at');
+
+    expect($scheduled->fresh()->scheduled_at->equalTo($original))->toBeTrue();
+})->with([
+    'empty' => [''],
+    'null' => [null],
+    'array' => [['invalid']],
+    'missing offset' => ['2026-10-16T12:00:00'],
+    'invalid date' => ['2026-10-32T12:00:00+00:00'],
+    'now' => ['2026-10-15T12:00:00+00:00'],
+    'past' => ['2026-10-15T11:59:00+00:00'],
+    'beyond thirty days' => ['2026-11-14T12:00:01+00:00'],
+]);
+
+it('requires a reschedule time and returns not found for missing receipts', function (): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    $this->actingAs($scheduled->user)->put(route('scheduled-commit.update', $scheduled), [])
+        ->assertSessionHasErrors('scheduled_at');
+    $this->put(route('scheduled-commit.update', '00000000-0000-4000-8000-000000000000'), [
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertNotFound();
+});
+
+it('reschedules at the thirty day boundary even when all ten queue slots are occupied', function (): void {
+    $user = User::factory()->create();
+    $items = ScheduledCommit::factory()->for($user)->count(10)->create();
+
+    $this->actingAs($user)->put(route('scheduled-commit.update', $items->first()), [
+        'scheduled_at' => now()->addDays(30)->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+
+    expect($items->first()->fresh()->scheduled_at->equalTo(now()->addDays(30)))->toBeTrue()
+        ->and(ScheduledCommit::query()->count())->toBe(10);
+});
+
+it('delivers exactly once at the rescheduled time', function (int $oldHours, int $newHours): void {
+    $start = CarbonImmutable::now();
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => $start->addHours($oldHours)]);
+
+    $this->actingAs($scheduled->user)->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => $start->addHours($newHours)->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+
+    $this->travelTo($start->addHours(min($oldHours, $newHours))->subSecond());
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    expect(Commit::query()->count())->toBe(0);
+
+    if ($newHours > $oldHours) {
+        $this->travelTo($start->addHours($oldHours));
+        $this->artisan('commits:submit-scheduled')->assertSuccessful();
+        expect(Commit::query()->count())->toBe(0);
+    }
+
+    $this->travelTo($start->addHours($newHours));
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    $this->travelTo($start->addHours(max($oldHours, $newHours)));
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    expect(Commit::query()->count())->toBe(1)
+        ->and($scheduled->fresh()->submitted_at->equalTo($start->addHours($newHours)))->toBeTrue()
+        ->and(Commit::query()->sole()->created_at->equalTo($start->addHours($newHours)))->toBeTrue();
+})->with(['earlier' => [4, 1], 'later' => [1, 4]]);
+
+it('can postpone a due but unclaimed item even if a scheduler already selected its id', function (): void {
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
+    $selected = ScheduledCommit::query()->where('scheduled_at', '<=', now())->sole();
+
+    $this->actingAs($scheduled->user)->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+
+    expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($selected->id))->toBeFalse()
+        ->and(Commit::query()->count())->toBe(0);
+});
+
+it('does not reschedule a canceled or submitted item from stale state', function (string $state): void {
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
+    if ($state === 'canceled') {
+        resolve(DeleteScheduledCommit::class)->handle($scheduled->user, $scheduled);
+    } else {
+        resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id);
+    }
+
+    expect(resolve(UpdateScheduledCommitScheduledAt::class)->handle($scheduled->user, $scheduled, CarbonImmutable::now()->addDay()))->toBeFalse();
+    $this->actingAs($scheduled->user)->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertSessionHasNoErrors()->assertInertiaFlash('toast', [
+        'type' => 'info',
+        'message' => 'This commit was already submitted or canceled. Refresh to see its status.',
+    ]);
+
+    expect($scheduled->fresh()->scheduled_at->equalTo(now()))->toBeTrue()
+        ->and($scheduled->fresh()->body)->toBeNull();
+})->with(['canceled', 'submitted']);
+
+it('preserves attachments and the chosen link preview when rescheduling and delivering', function (string $attachment): void {
+    Storage::fake();
+    Queue::fake([UnfurlLink::class]);
+    $user = User::factory()->create();
+    $this->actingAs($user)->post(route('scheduled-commit.store'), [
+        'body' => 'Read https://example.com/first or https://example.com/chosen',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+        'link_preview_url' => 'https://example.com/chosen',
+        ...($attachment === 'images'
+            ? ['images' => [UploadedFile::fake()->image('draft.png')], 'image_descriptions' => ['Original description']]
+            : ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440]]),
+    ])->assertSessionHasNoErrors();
+    $scheduled = ScheduledCommit::query()->sole();
+    $content = $scheduled->only(['body', 'poll', 'images', 'link_preview_url']);
+    $paths = array_column($scheduled->images ?? [], 'path');
+
+    $this->put(route('scheduled-commit.update', $scheduled), [
+        'scheduled_at' => now()->addHours(2)->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+    expect($scheduled->fresh()->only(array_keys($content)))->toBe($content);
+    Storage::disk()->assertExists($paths);
+
+    $this->travel(1)->hour();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    expect(Commit::query()->count())->toBe(0);
+    $this->travel(1)->hour();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    $commit = Commit::query()->sole();
+    expect($commit->body)->toBe($content['body'])
+        ->and($commit->linkPreview->url)->toBe('https://example.com/chosen')
+        ->and($commit->images()->orderBy('position')->pluck('path')->all())->toBe($paths);
+    if ($attachment === 'poll') {
+        expect($commit->poll->options()->orderBy('position')->pluck('label')->all())->toBe(['Tabs', 'Spaces']);
+    } else {
+        expect($commit->images()->sole()->description)->toBe('Original description');
+    }
+
+    Storage::disk()->assertExists($paths);
+})->with(['images', 'poll']);
 
 it('does not load the schedule when the page only polls the unread count', function (): void {
     $user = User::factory()->create();
