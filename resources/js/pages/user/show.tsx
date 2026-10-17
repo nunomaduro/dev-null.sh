@@ -21,6 +21,7 @@ import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -111,34 +112,40 @@ export default function Show({
                         style={{ '--lane': lane } as CSSProperties}
                     />
 
-                    {isCurrentUser ? (
-                        <Button variant="outline" asChild>
-                            <a
-                                href="https://github.com/settings/profile"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Edit on GitHub
-                                <ArrowUpRight />
-                            </a>
-                        </Button>
-                    ) : (
-                        <div className="flex gap-2">
-                            {auth.user && (
-                                <UserSafetyMenu
+                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                        <ProfileShareButton
+                            username={user.username}
+                            href={show(user).url}
+                        />
+                        {isCurrentUser ? (
+                            <Button variant="outline" asChild>
+                                <a
+                                    href="https://github.com/settings/profile"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Edit on GitHub
+                                    <ArrowUpRight />
+                                </a>
+                            </Button>
+                        ) : (
+                            <>
+                                {auth.user && (
+                                    <UserSafetyMenu
+                                        user={user}
+                                        isMuting={isMuting}
+                                        isBlocking={false}
+                                    />
+                                )}
+                                <FollowButton
                                     user={user}
-                                    isMuting={isMuting}
-                                    isBlocking={false}
+                                    isFollowing={isFollowing}
+                                    className="min-w-24 sm:min-w-28"
+                                    onSuccess={() => router.flushAll()}
                                 />
-                            )}
-                            <FollowButton
-                                user={user}
-                                isFollowing={isFollowing}
-                                className="min-w-28"
-                                onSuccess={() => router.flushAll()}
-                            />
-                        </div>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
