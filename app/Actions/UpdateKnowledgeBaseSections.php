@@ -8,7 +8,6 @@ use App\Models\KnowledgeBaseSection;
 use App\Services\MarkdownSections;
 use App\Services\OpenAI;
 use Illuminate\Support\Facades\DB;
-use UnexpectedValueException;
 
 final readonly class UpdateKnowledgeBaseSections
 {
@@ -40,10 +39,6 @@ final readonly class UpdateKnowledgeBaseSections
                 fn (array $section): string => mb_trim(implode(' > ', $section['headings'])."\n\n".$section['content']),
                 array_values($batch),
             ));
-
-            if (count($vectors) !== count($batch)) {
-                throw new UnexpectedValueException('OpenAI did not return an embedding for every knowledge base section.');
-            }
 
             foreach (array_keys($batch) as $index => $position) {
                 $embeddings[$position] = $vectors[$index];

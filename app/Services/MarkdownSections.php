@@ -21,6 +21,7 @@ final readonly class MarkdownSections
         $lines = explode("\n", $markdown);
         $environment = new Environment();
         $environment->addExtension(new CommonMarkCoreExtension());
+
         $document = new MarkdownParser($environment)->parse($markdown);
         $sections = [];
         $headings = [];
