@@ -259,7 +259,7 @@ export default function Show({
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
                     <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
+                        Highest risk first
                     </p>
                 </div>
 
@@ -320,6 +320,23 @@ export default function Show({
                 actions={(commit) => (
                     <>
                         <AiDecision commit={commit} />
+                        {commit.moderation_signals &&
+                            commit.moderation_signals.length > 0 && (
+                                <ul
+                                    className="mt-2 flex flex-wrap gap-1"
+                                    aria-label="Moderation signals"
+                                >
+                                    {commit.moderation_signals.map((signal) => (
+                                        <li
+                                            key={signal.code}
+                                            className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground"
+                                            data-test="moderation-signal"
+                                        >
+                                            {signal.code}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         <ModerationActions
                             isSelected={selected.has(commit.id)}
                             isDisabled={isModerating || approving}

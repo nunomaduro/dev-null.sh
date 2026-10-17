@@ -61,9 +61,15 @@ it('does not count the authenticated user relations when redirecting after a com
 
     $response->assertRedirectToRoute('log.show', Log::Following);
 
-    expect(array_column(DB::getQueryLog(), 'query'))
-        ->not->toBeEmpty()
-        ->each->not->toContain('count(*)');
+    $queries = array_column(DB::getQueryLog(), 'query');
+
+    expect($queries)->not->toBeEmpty();
+
+    expect(array_values(array_filter(
+        $queries,
+        fn (string $query): bool => str_contains($query, 'count(*)')
+            && (str_contains($query, 'follows') || str_contains($query, '"users"')),
+    )))->toBeEmpty();
 });
 
 it('rejects non-text commit bodies with a validation error', function (mixed $body): void {

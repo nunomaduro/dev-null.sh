@@ -33,6 +33,7 @@ final readonly class ModerationController
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
+                ->orderByDesc('moderation_score')
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)

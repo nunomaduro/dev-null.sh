@@ -39,6 +39,36 @@ it('creates commits pending review', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('scores pending commits for moderation triage', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Join my discord https://example.com');
+
+    expect($commit->refresh())
+        ->status->toBe(CommitStatus::Pending)
+        ->body_hash->not->toBeNull()
+        ->moderation_score->toBeGreaterThan(0)
+        ->and(array_column($commit->moderation_signals ?? [], 'code'))
+        ->toContain('invite_like')
+        ->toContain('has_url');
+});
+
+it('does not score admin commits that are approved immediately', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Join my discord');
+
+    expect($commit->refresh())
+        ->status->toBe(CommitStatus::Approved)
+        ->moderation_score->toBe(0)
+        ->moderation_signals->toBeNull()
+        ->body_hash->toBeNull();
+});
+
 it('stores emoji shortcodes as their emoji', function (): void {
     $action = resolve(CreateCommit::class);
 

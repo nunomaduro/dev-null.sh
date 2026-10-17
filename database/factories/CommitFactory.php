@@ -24,6 +24,9 @@ final class CommitFactory extends Factory
             'user_id' => User::factory(),
             'body' => fake()->realText(280),
             'status' => CommitStatus::Approved,
+            'moderation_score' => 0,
+            'moderation_signals' => null,
+            'body_hash' => null,
         ];
     }
 
@@ -54,6 +57,17 @@ final class CommitFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'status' => CommitStatus::Rejected,
+        ]);
+    }
+
+    /**
+     * @param  list<array{code: string, weight: int}>|null  $signals
+     */
+    public function scored(int $score, ?array $signals = null): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'moderation_score' => $score,
+            'moderation_signals' => $signals,
         ]);
     }
 }

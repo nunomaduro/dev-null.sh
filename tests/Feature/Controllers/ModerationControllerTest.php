@@ -14,11 +14,24 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
-it('renders pending commits oldest first', function (): void {
+it('renders pending commits highest risk first then oldest', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 
-    Commit::factory()->pending()->create(['body' => 'Newer']);
-    Commit::factory()->pending()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->scored(10)->create([
+        'body' => 'Low risk newer',
+        'created_at' => now(),
+    ]);
+    Commit::factory()->pending()->scored(10)->create([
+        'body' => 'Low risk older',
+        'created_at' => now()->subMinute(),
+    ]);
+    Commit::factory()->pending()->scored(80, [
+        ['code' => 'duplicate', 'weight' => 50],
+        ['code' => 'has_url', 'weight' => 10],
+    ])->create([
+        'body' => 'High risk',
+        'created_at' => now()->subSeconds(30),
+    ]);
     Commit::factory()->create();
     Commit::factory()->rejected()->create();
 
@@ -28,11 +41,14 @@ it('renders pending commits oldest first', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('moderation/show')
-            ->has('commits.data', 2)
-            ->where('commits.data.0.body', 'Older')
+            ->has('commits.data', 3)
+            ->where('commits.data.0.body', 'High risk')
+            ->where('commits.data.0.moderation_score', 80)
+            ->where('commits.data.0.moderation_signals.0.code', 'duplicate')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
-            ->where('commits.data.1.body', 'Newer')
+            ->where('commits.data.1.body', 'Low risk older')
+            ->where('commits.data.2.body', 'Low risk newer')
             ->has('commits.data.0.user'));
 });
 
