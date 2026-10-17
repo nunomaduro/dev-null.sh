@@ -40,5 +40,6 @@ _ide_helper.php
 /.agents
 /.claude/skills
 /.codex
-/.cursor
+/.cursor/*
+!/.cursor/worktrees.json
 /.junie

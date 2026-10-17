@@ -54,6 +54,18 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 
 Twitch requires the embedding site's host, which is taken from `APP_URL`. To add a site, implement `App\Contracts\Services\EmbedProvider` and register it in `config/embeds.php`.
 
+### Git worktrees
+
+`.env` is gitignored, so a new worktree starts without one. `bin/worktree-setup` copies it from the main checkout. Claude Code and Cursor run it automatically when they create a worktree; otherwise run it yourself, then run `composer setup`.
+
+Worktrees share your main checkout's database by default. To give each worktree its own database, named `{DB_DATABASE}_{worktree directory}`, set this in the main checkout's `.env` before creating worktrees:
+
+```dotenv
+WORKTREE_DB_ISOLATE=true
+```
+
+Nothing drops these databases when a worktree is removed. Run `dropdb` yourself.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Copy .env from the main checkout into a fresh worktree.
+# Opt in to a separate Postgres DB per worktree with WORKTREE_DB_ISOLATE=true in your (gitignored) .env.
+set -euo pipefail
+
+[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] || exit 0 # main checkout
+[ ! -f .env ] || exit 0 # already set up
+
+cp "$(git worktree list --porcelain | awk 'NR==1{print $2}')/.env" .env
+
+env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | tr -d '"'; }
+
+if [ "$(env_get WORKTREE_DB_ISOLATE)" = true ]; then
+  DB="$(env_get DB_DATABASE)_$(basename "$PWD" | tr -c 'a-zA-Z0-9\n' '_')"
+  sed -i.bak "s|^DB_DATABASE=.*|DB_DATABASE=$DB|" .env && rm .env.bak
+  PGPASSWORD=$(env_get DB_PASSWORD) createdb -h "$(env_get DB_HOST)" -p "$(env_get DB_PORT)" -U "$(env_get DB_USERNAME)" "$DB" 2>/dev/null || true
+fi
+
+echo ".env ready (DB_DATABASE=$(env_get DB_DATABASE)). Next: run \`composer setup\`."
