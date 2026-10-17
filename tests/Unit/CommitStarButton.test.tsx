@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { CommitStarButton } from '../../resources/js/components/commit-star-button';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type { Commit } from '../../resources/js/types';
 
 async function render(
@@ -40,7 +41,11 @@ async function render(
             />
         ),
         render: renderToString,
-        setup: ({ App, props }) => <App {...props} />,
+        setup: ({ App, props }) => (
+            <TooltipProvider>
+                <App {...props} />
+            </TooltipProvider>
+        ),
     });
 
     assert.ok(result);

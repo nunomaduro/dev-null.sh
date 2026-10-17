@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { CommitQuoteButton } from '../../resources/js/components/commit-quote-button';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type { Commit } from '../../resources/js/types';
 
 const commit = {
@@ -31,7 +32,11 @@ for (const user of [null, { id: 'viewer' }]) {
             },
             resolve: () => () => <CommitQuoteButton commit={commit} />,
             render: renderToString,
-            setup: ({ App, props }) => <App {...props} />,
+            setup: ({ App, props }) => (
+                <TooltipProvider>
+                    <App {...props} />
+                </TooltipProvider>
+            ),
         });
 
         assert.ok(result);

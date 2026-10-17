@@ -36,6 +36,11 @@ import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
@@ -342,6 +347,7 @@ export function ThreadActions({
     const { auth } = usePage().props;
     const { commit } = thread;
     const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
+    const hasReplyShortcut = hasKeyboardShortcuts && !thread.isReplying;
 
     return (
         <>
@@ -350,66 +356,73 @@ export function ThreadActions({
                     {actions}
 
                     {!isDeleted(commit) && (
-                        <button
-                            type="button"
-                            onClick={
-                                auth.user === null
-                                    ? signIn
-                                    : thread.isReplying
-                                      ? thread.cancelReply
-                                      : thread.startReply
-                            }
-                            aria-expanded={thread.isReplying}
-                            aria-keyshortcuts={
-                                hasKeyboardShortcuts && !thread.isReplying
-                                    ? 'r'
-                                    : undefined
-                            }
-                            title={
-                                hasKeyboardShortcuts ? 'Reply (r)' : undefined
-                            }
-                            className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                            data-test="reply-button"
-                        >
-                            <MessageSquareReply className="size-4" />
-                            Reply
-                            {hasStash && !thread.isReplying && (
-                                <span
-                                    title="You have an unsent reply here"
-                                    className="font-mono text-[11px] opacity-70"
-                                    data-test="reply-stash-hint"
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    onClick={
+                                        auth.user === null
+                                            ? signIn
+                                            : thread.isReplying
+                                              ? thread.cancelReply
+                                              : thread.startReply
+                                    }
+                                    aria-expanded={thread.isReplying}
+                                    aria-keyshortcuts={
+                                        hasReplyShortcut ? 'r' : undefined
+                                    }
+                                    className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    data-test="reply-button"
                                 >
-                                    {'stash@{0}'}
-                                </span>
-                            )}
-                        </button>
+                                    <MessageSquareReply className="size-4" />
+                                    Reply
+                                    {hasStash && !thread.isReplying && (
+                                        <span
+                                            title="You have an unsent reply here"
+                                            className="font-mono text-[11px] opacity-70"
+                                            data-test="reply-stash-hint"
+                                        >
+                                            {'stash@{0}'}
+                                        </span>
+                                    )}
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {hasReplyShortcut ? 'Reply (r)' : 'Reply'}
+                            </TooltipContent>
+                        </Tooltip>
                     )}
 
                     {thread.count > 0 && !thread.isPreview && (
-                        <button
-                            type="button"
-                            onClick={thread.toggle}
-                            aria-expanded={thread.isOpen}
-                            aria-keyshortcuts={
-                                hasKeyboardShortcuts ? 'o' : undefined
-                            }
-                            title={
-                                hasKeyboardShortcuts
-                                    ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
-                                    : undefined
-                            }
-                            className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
-                            data-test="toggle-replies-button"
-                        >
-                            <ChevronDown
-                                className={cn('size-4 transition-transform', {
-                                    '-rotate-90': !thread.isOpen,
-                                })}
-                            />
-                            {thread.isOpen
-                                ? 'Hide replies'
-                                : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    onClick={thread.toggle}
+                                    aria-expanded={thread.isOpen}
+                                    aria-keyshortcuts={
+                                        hasKeyboardShortcuts ? 'o' : undefined
+                                    }
+                                    className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                                    data-test="toggle-replies-button"
+                                >
+                                    <ChevronDown
+                                        className={cn(
+                                            'size-4 transition-transform',
+                                            {
+                                                '-rotate-90': !thread.isOpen,
+                                            },
+                                        )}
+                                    />
+                                    {thread.isOpen
+                                        ? 'Hide replies'
+                                        : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {`${thread.isOpen ? 'Hide' : 'Show'} replies${hasKeyboardShortcuts ? ' (o)' : ''}`}
+                            </TooltipContent>
+                        </Tooltip>
                     )}
                 </div>
 
@@ -841,15 +854,19 @@ function CommitReply({
                             </span>
                         )}
                         {isOwn && (
-                            <button
-                                type="button"
-                                onClick={() => setIsConfirming(true)}
-                                aria-label="Delete reply"
-                                title="Delete reply"
-                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                            >
-                                <Trash2 className="size-3.5" />
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsConfirming(true)}
+                                        aria-label="Delete reply"
+                                        className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete reply</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
 
