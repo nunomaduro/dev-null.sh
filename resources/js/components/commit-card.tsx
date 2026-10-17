@@ -105,10 +105,43 @@ export function CommitCard({
 
         window.setTimeout(
             () =>
-                router.visit(CommitController.destroy(commit), {
-                    ...commitMutationOptions(component),
-                    onError: () => setDeletion('idle'),
-                }),
+                router
+                    .optimistic(
+                        (props: {
+                            commits?: CursorPaginated<Commit>;
+                            user?: { commits_count?: number };
+                            pinnedCommit?: Commit | null;
+                        }) => ({
+                            ...(props.commits?.data
+                                ? {
+                                      commits: {
+                                          ...props.commits,
+                                          data: props.commits.data.filter(
+                                              (c: Commit) => c.id !== commit.id,
+                                          ),
+                                      },
+                                  }
+                                : {}),
+                            ...(props.user?.commits_count !== undefined
+                                ? {
+                                      user: {
+                                          ...props.user,
+                                          commits_count: Math.max(
+                                              0,
+                                              props.user.commits_count - 1,
+                                          ),
+                                      },
+                                  }
+                                : {}),
+                            ...(props.pinnedCommit?.id === commit.id
+                                ? { pinnedCommit: null }
+                                : {}),
+                        }),
+                    )
+                    .visit(CommitController.destroy(commit), {
+                        ...commitMutationOptions(component),
+                        onError: () => setDeletion('idle'),
+                    }),
             prefersReducedMotion ? 0 : 700,
         );
     };

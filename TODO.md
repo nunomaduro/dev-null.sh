@@ -88,7 +88,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 - [ ] Re-run `php artisan boost:install` so AI guidelines/skills stop referencing Fortify
 - [ ] Rewrite `README.md` for /dev/null
 - [ ] Handle GitHub username renames colliding with an existing (stale) username
-- [ ] Deleting a post far down the feed reloads the first page — consider optimistic removal
+- [x] Deleting a post far down the feed reloads the first page — consider optimistic removal
 
 ## Not now
 
