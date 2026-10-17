@@ -17,6 +17,7 @@ enum Achievement: string
     case Superstar = 'superstar';
     case Pipe = 'pipe';
     case AuthorizedKeys = 'authorized_keys';
+    case Pastelaria = 'pastelaria';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum Achievement: string
             self::Superstar => 'superstar',
             self::Pipe => 'pipe',
             self::AuthorizedKeys => 'authorized_keys',
+            self::Pastelaria => 'pastelaria',
         };
     }
 
@@ -49,6 +51,7 @@ enum Achievement: string
             self::Superstar => 'Received 25 stars on your commits.',
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
+            self::Pastelaria => 'Received 10 pastéis de nata on your commits.',
         };
     }
 
@@ -66,6 +69,7 @@ enum Achievement: string
             self::Superstar => 'sparkles',
             self::Pipe => 'git-merge',
             self::AuthorizedKeys => 'key',
+            self::Pastelaria => 'croissant',
         };
     }
 
@@ -83,6 +87,7 @@ enum Achievement: string
             self::Superstar => 25,
             self::Pipe => 5,
             self::AuthorizedKeys => 1,
+            self::Pastelaria => 10,
         };
     }
 }

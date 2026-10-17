@@ -1,5 +1,6 @@
 import {
     Box,
+    Croissant,
     FileCode,
     Flame,
     GitMerge,
@@ -35,6 +36,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    croissant: Croissant,
 };
 
 export function AchievementsDialog({
@@ -285,7 +287,7 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground/80">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given
+                    2/star given · 5/pastel received
                 </p>
             </DialogContent>
         </Dialog>
