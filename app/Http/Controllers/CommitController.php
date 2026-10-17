@@ -17,6 +17,7 @@ use App\Queries\CommitRepliesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -35,16 +36,21 @@ final readonly class CommitController
             return $threadReplies ??= $replies->paginate($commit, $currentUser);
         };
 
+        $loadedCommit = null;
+        $getCommit = function () use (&$loadedCommit, $commit, $currentUser): Commit {
+            return $loadedCommit ??= Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withCardDataFor($currentUser)
+                ->findOrFail($commit->id);
+        };
+
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
-            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $getCommit()->load(['parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]),
             $getReplies()->items(),
         );
 
         return Inertia::render('commit/show', [
-            'commit' => fn (): Commit => Commit::query()
-                ->withVisibleReplyCount($currentUser)
-                ->withCardDataFor($currentUser)
-                ->findOrFail($commit->id),
+            'commit' => $getCommit,
             'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
             'replies' => $getReplies,
         ])->withViewData(['preview' => $preview]);
