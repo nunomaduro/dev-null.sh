@@ -6,6 +6,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -55,6 +56,32 @@ it('renders whether the user can be sponsored on github', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.has_sponsors_listing', true));
+});
+
+it('defers the shiptalker index, so GitHub never holds up the profile', function (): void {
+    config(['services.github.token' => 'github-token']);
+    $user = User::factory()->create();
+    Commit::factory()->for($user)->create();
+    fakeGitHubContributions($user, 12);
+
+    $response = $this->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->missing('shiptalkerIndex')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('shiptalkerIndex.shipped', 12)
+                ->where('shiptalkerIndex.talked', 1)));
+});
+
+it('does not defer a shiptalker index without a GitHub token', function (): void {
+    config(['services.github.token' => null]);
+
+    $response = $this->get(route('user.show', User::factory()->create()));
+
+    $response->assertOk();
+
+    expect(Arr::flatten($response->viewData('page')['deferredProps'] ?? []))->not->toContain('shiptalkerIndex');
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {

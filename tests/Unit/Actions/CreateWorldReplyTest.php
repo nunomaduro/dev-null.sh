@@ -24,6 +24,7 @@ it('answers an approved hello world once', function (): void {
         ->and($reply->status)->toBe(CommitStatus::Approved)
         ->and($reply->user->username)->toBe('world')
         ->and($reply->user->github_id)->toBe('0')
+        ->and($reply->user->hasGitHubAccount())->toBeFalse()
         ->and($commit->user->notifications()->sole()->commit_id)->toBe($reply->id);
 });
 

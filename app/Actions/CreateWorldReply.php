@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateWorldReply
 {
-    private const string GITHUB_ID = '0';
+    public const string GITHUB_ID = '0';
 
     private const string USERNAME = 'world';
 

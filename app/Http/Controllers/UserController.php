@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserShiptalkerIndexQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -24,9 +25,10 @@ use Inertia\Response;
 final readonly class UserController
 {
     /**
-     * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
+     * Profiles are public, so guests and crawlers read the same page, with the profile's link preview. The shiptalker
+     * index is deferred, so a slow GitHub never holds up the page.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, UserShiptalkerIndexQuery $shiptalkerIndex, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -51,6 +53,9 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
+            ...$shiptalkerIndex->isConfigured() ? [
+                'shiptalkerIndex' => Inertia::defer(fn (): ?array => $shiptalkerIndex->get($user)),
+            ] : [],
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)

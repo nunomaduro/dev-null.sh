@@ -172,6 +172,16 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
     ]);
 }
 
+function fakeGitHubContributions(User $user, int $total): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['user' => [
+            'databaseId' => (int) $user->github_id,
+            'contributionsCollection' => ['contributionCalendar' => ['totalContributions' => $total]],
+        ]]]),
+    ]);
+}
+
 /**
  * @return array{payload: string, signature: string}
  */

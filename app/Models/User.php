@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\CreateWorldReply;
 use App\Enums\Log;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -369,11 +370,11 @@ final class User extends Authenticatable
     }
 
     /**
-     * Everyone signs in with GitHub except Tom, who was made up and has no GitHub profile to link to.
+     * Everyone signs in with GitHub except the bots, Tom and @world, who were made up and have no GitHub profile to link to.
      */
     public function hasGitHubAccount(): bool
     {
-        return $this->github_id !== CreateTomFriendship::GITHUB_ID;
+        return ! in_array($this->github_id, [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID], true);
     }
 
     private function fillCounts(int $commits): self
