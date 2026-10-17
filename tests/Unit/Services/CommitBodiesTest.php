@@ -12,6 +12,8 @@ it('collapses runs of blank lines in the prose into one', function (string $body
     'many blank lines' => ["a\n\n\n\n\n\nb", "a\n\nb"],
     'blank lines with spaces and tabs' => ["a \n\t\n  \n\nb", "a\n\nb"],
     'windows line breaks' => ["a\r\nb\r\n\r\n\r\n\r\nc", "a\nb\n\nc"],
+    'standalone carriage returns' => ["a\rb\r\r\rc", "a\nb\n\nc"],
+    'mixed line endings' => ["a\r\nb\rc\n\n\rd", "a\nb\nc\n\nd"],
     'blank lines in a code block' => ["a\n```py\ndef a():\n    pass\n\n\ndef b():\n    pass\n```\nb", "a\n```py\ndef a():\n    pass\n\n\ndef b():\n    pass\n```\nb"],
     'blank lines around a code block' => ["a\n\n\n\n```\ncode\n```\n\n\n\nb", "a\n\n```\ncode\n```\n\nb"],
 ]);
