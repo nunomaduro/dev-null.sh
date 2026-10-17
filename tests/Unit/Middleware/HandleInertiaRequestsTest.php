@@ -268,6 +268,15 @@ it('shows who to follow by default', function (string $cookie): void {
         ->and($shared)->toHaveKey('suggestedUsers');
 })->with(['', 'true']);
 
+it('does not share suggested users before onboarding ends, so the ones followed during it are not cached', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => User::factory()->notOnboarded()->create());
+
+    expect($middleware->share($request))->not->toHaveKey('suggestedUsers');
+});
+
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();
     $user = User::factory()->create();
