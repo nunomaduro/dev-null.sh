@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
+use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
@@ -155,6 +156,17 @@ it('rejects keys that are no longer on github', function (): void {
 
     $response->assertUnauthorized()
         ->assertContent("This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.\n");
+});
+
+it('rejects the keys of banned users', function (): void {
+    Ban::factory()->create(['github_id' => $this->user->github_id]);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'));
+
+    $response->assertUnauthorized()
+        ->assertContent("This SSH key ({$this->keyPair->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.\n");
+
+    expect(Commit::query()->withoutGlobalScopes()->exists())->toBeFalse();
 });
 
 it('validates the commit', function (string $body, string $message): void {

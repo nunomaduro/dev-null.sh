@@ -39,6 +39,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserActivityGraphController;
+use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
@@ -286,6 +287,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.store');
     Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
+
+    // User Ban...
+    Route::post('@{user:username}/ban', [UserBanController::class, 'store'])
+        ->name('user-ban.store');
 });
 
 Route::fallback(fn () => abort(404));

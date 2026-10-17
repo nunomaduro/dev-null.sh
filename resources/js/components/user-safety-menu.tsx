@@ -1,6 +1,7 @@
-import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import { router, usePage } from '@inertiajs/react';
+import { Ban, Ellipsis, ShieldBan, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
+import UserBanController from '@/actions/App/Http/Controllers/UserBanController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -34,14 +36,15 @@ export function UserSafetyMenu({
     className?: string;
     onOpenChange?: (isOpen: boolean) => void;
 }) {
+    const { auth } = usePage().props;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
+    const [confirming, setConfirming] = useState<'block' | 'ban' | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    const changeOpen = (menu: boolean, dialog: boolean) => {
+    const changeOpen = (menu: boolean, dialog: 'block' | 'ban' | null) => {
         setIsMenuOpen(menu);
-        setIsConfirmingBlock(dialog);
-        onOpenChange?.(menu || dialog);
+        setConfirming(dialog);
+        onOpenChange?.(menu || dialog !== null);
     };
 
     const visit = (action: Parameters<typeof router.visit>[0]) => {
@@ -50,7 +53,7 @@ export function UserSafetyMenu({
             onStart: () => setIsSaving(true),
             onFinish: () => {
                 setIsSaving(false);
-                changeOpen(false, false);
+                changeOpen(false, null);
             },
             onSuccess: () => router.flushAll(),
         });
@@ -61,7 +64,7 @@ export function UserSafetyMenu({
             <DropdownMenu
                 modal={false}
                 open={isMenuOpen}
-                onOpenChange={(open) => changeOpen(open, isConfirmingBlock)}
+                onOpenChange={(open) => changeOpen(open, confirming)}
             >
                 <DropdownMenuTrigger asChild>
                     <Button
@@ -96,7 +99,7 @@ export function UserSafetyMenu({
                         onSelect={() =>
                             isBlocking
                                 ? visit(UserBlockController.destroy(user))
-                                : changeOpen(false, true)
+                                : changeOpen(false, 'block')
                         }
                     >
                         <Ban />
@@ -104,12 +107,27 @@ export function UserSafetyMenu({
                             ? `Unblock @${user.username}`
                             : `Block @${user.username}`}
                     </DropdownMenuItem>
+                    {auth.isAdmin && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isSaving}
+                                onSelect={() => changeOpen(false, 'ban')}
+                            >
+                                <ShieldBan />
+                                {`Ban @${user.username}`}
+                            </DropdownMenuItem>
+                        </>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
 
             <Dialog
-                open={isConfirmingBlock}
-                onOpenChange={(open) => changeOpen(false, open)}
+                open={confirming === 'block'}
+                onOpenChange={(open) =>
+                    changeOpen(false, open ? 'block' : null)
+                }
             >
                 <DialogContent>
                     <DialogTitle>Block @{user.username}?</DialogTitle>
@@ -135,6 +153,35 @@ export function UserSafetyMenu({
                             data-test="confirm-block-button"
                         >
                             Block
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={confirming === 'ban'}
+                onOpenChange={(open) => changeOpen(false, open ? 'ban' : null)}
+            >
+                <DialogContent>
+                    <DialogTitle>Ban @{user.username}?</DialogTitle>
+                    <DialogDescription>
+                        They'll be signed out, and their GitHub account won't be
+                        able to sign in again, even under a new username. Their
+                        profile, commits and replies will be hidden from
+                        everyone. Nothing is deleted.
+                    </DialogDescription>
+
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+
+                        <Button
+                            variant="destructive"
+                            disabled={isSaving}
+                            onClick={() => visit(UserBanController.store(user))}
+                        >
+                            Ban
                         </Button>
                     </DialogFooter>
                 </DialogContent>

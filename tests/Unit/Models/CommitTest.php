@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
+use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -402,4 +403,20 @@ it('never shows the images of a deleted commit in its tombstone', function (): v
     $tombstone = Commit::withTrashed()->with('images')->findOrFail($commit->id);
 
     expect($tombstone->toArray())->not->toHaveKey('images');
+});
+
+it('is hidden while its author is banned, unlike commits whose author deleted their account', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $orphan = Commit::factory()->create(['user_id' => null]);
+
+    Ban::factory()->create(['github_id' => $reply->user->github_id]);
+
+    expect(Commit::query()->pluck('id')->all())->toEqualCanonicalizing([$parent->id, $orphan->id])
+        ->and(Commit::query()->whereHas('replies')->exists())->toBeFalse()
+        ->and(Commit::query()->withoutGlobalScopes()->count())->toBe(3);
+
+    Ban::query()->delete();
+
+    expect(Commit::query()->whereHas('replies')->sole()->is($parent))->toBeTrue();
 });

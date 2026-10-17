@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
+use App\Models\Ban;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -271,3 +272,18 @@ it('frees a username still held by a stale user who renamed on github', function
         ->and($stale->github_id)->toBe('1')
         ->and($stale->bio)->toBe('Renamed away');
 })->with(['octocat', 'OctoCat']);
+
+it('frees a username still held by a banned user', function (): void {
+    fakeGitHubSponsorsListing();
+
+    $banned = User::factory()->create(['github_id' => '1', 'username' => 'octocat']);
+    Ban::factory()->create(['github_id' => '1']);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($user->username)->toBe('octocat')
+        ->and(User::query()->withoutGlobalScopes()->findOrFail($banned->id)->username)->toBe('_renamed-1');
+});

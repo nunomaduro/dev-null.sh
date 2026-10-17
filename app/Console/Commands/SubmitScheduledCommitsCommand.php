@@ -15,10 +15,13 @@ use Throwable;
 #[Description('Submit up to 100 due scheduled commits through the normal review process')]
 final class SubmitScheduledCommitsCommand extends Command
 {
+    /**
+     * What banned users scheduled waits, and goes out if the ban is lifted.
+     */
     public function handle(UpdateScheduledCommitSubmittedAt $action): int
     {
         $failed = false;
-        $scheduledCommits = ScheduledCommit::query()->whereNull('submitted_at')->whereNull('canceled_at')
+        $scheduledCommits = ScheduledCommit::query()->whereNull('submitted_at')->whereNull('canceled_at')->whereHas('user')
             ->where('scheduled_at', '<=', now())->oldest('scheduled_at')->orderBy('id')->limit(100)->get(['id']);
 
         foreach ($scheduledCommits as $scheduled) {

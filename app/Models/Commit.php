@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CommitStatus;
+use App\Models\Scopes\WithoutBannedAuthors;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Casts\AsVector;
 use Illuminate\Database\Eloquent\Collection;
@@ -59,6 +61,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_categories',
     'embedding',
 ])]
+#[ScopedBy(WithoutBannedAuthors::class)]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
 {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
@@ -222,4 +223,20 @@ it('knows who it blocks and who blocks it', function (): void {
         ->and($user->hasBlockWith($stranger))->toBeFalse()
         ->and($user->blocking->modelKeys())->toBe([$other->id])
         ->and($other->blockers->modelKeys())->toBe([$user->id]);
+});
+
+it('is left out of every query while banned', function (): void {
+    $user = User::factory()->create();
+    $follower = User::factory()->create();
+    $follower->following()->attach($user);
+
+    Ban::factory()->create(['github_id' => $follower->github_id]);
+
+    expect(User::query()->sole()->is($user))->toBeTrue()
+        ->and($user->followers()->exists())->toBeFalse()
+        ->and(User::query()->whereHas('followers')->exists())->toBeFalse();
+
+    Ban::query()->delete();
+
+    expect(User::query()->whereHas('followers')->sole()->is($user))->toBeTrue();
 });
