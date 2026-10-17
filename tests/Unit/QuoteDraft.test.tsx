@@ -48,6 +48,8 @@ const { CommitQuoteButton } =
     await import('../../resources/js/components/commit-quote-button');
 const { ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
+const { MentionTextarea } =
+    await import('../../resources/js/components/mention-textarea');
 const { StashLabel } =
     await import('../../resources/js/components/stash-label');
 
@@ -171,4 +173,44 @@ test('quotes submit restored images and clear the complete draft only on success
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('passes slash command context to the quote composer textarea', () => {
+    const commit = {
+        id: 'quoted',
+        user_id: 'author',
+        user: { username: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const renderFields = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    const fields = elements(renderFields({ processing: false, errors: {} }));
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+
+    assert.deepEqual(textarea.props.commandContext, {
+        surface: 'quote',
+        hasPoll: false,
+        imageCount: 1,
+        isScheduling: false,
+        processing: false,
+    });
+    assert.equal(textarea.props.onPoll, undefined);
+    assert.equal(typeof textarea.props.onImage, 'function');
 });

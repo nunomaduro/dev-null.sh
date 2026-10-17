@@ -411,3 +411,47 @@ test('previews restored images and descriptions while keeping them attached when
         image_descriptions: ['A restored screenshot'],
     });
 });
+
+test('passes slash command context and callbacks to the composer textarea', () => {
+    let view = render();
+    let textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.deepEqual(textarea.props.commandContext, {
+        surface: 'commit',
+        hasPoll: false,
+        imageCount: 0,
+        isScheduling: false,
+        processing: false,
+    });
+    assert.equal(typeof textarea.props.onImage, 'function');
+    assert.equal(typeof textarea.props.onPoll, 'function');
+    assert.equal(
+        (view.fields.find(
+            (element) => element.type === ImagePickerButton,
+        )!.props.inputRef as { current: unknown }).current,
+        null,
+    );
+
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        const pollButton = view.fields.find(
+            (element) => element.props['data-test'] === 'add-poll-button',
+        )!;
+        (pollButton.props.onClick as () => void)();
+        view = render();
+        textarea = view.fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+        assert.equal(
+            (textarea.props.commandContext as { hasPoll: boolean }).hasPoll,
+            true,
+        );
+
+        (textarea.props.onPoll as () => void)();
+        view = render();
+        assert.ok(view.fields.some((element) => element.type === PollEditor));
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});

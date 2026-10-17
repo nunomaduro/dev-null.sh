@@ -114,7 +114,15 @@ function CommitComposerBody({
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
+
+    const startPoll = () => {
+        setPoll(emptyPollDraft);
+        requestAnimationFrame(() =>
+            document.getElementById(`${id}-poll-option-0`)?.focus(),
+        );
+    };
 
     return (
         <div
@@ -156,6 +164,15 @@ function CommitComposerBody({
                                 preview.handleShortcut(event) ||
                                 onKeyDown(event)
                             }
+                            onImage={() => imageInputRef.current?.click()}
+                            onPoll={startPoll}
+                            commandContext={{
+                                surface: 'commit',
+                                hasPoll: poll !== null,
+                                imageCount: attachments.images.length,
+                                isScheduling,
+                                processing,
+                            }}
                             onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={maxBodyLength}
                             placeholder={
@@ -285,6 +302,7 @@ function CommitComposerBody({
                                 count={attachments.images.length}
                                 disabled={processing || poll !== null}
                                 onPick={attachments.attach}
+                                inputRef={imageInputRef}
                                 className="-ml-2"
                             />
                             <Button
@@ -294,16 +312,7 @@ function CommitComposerBody({
                                 disabled={
                                     processing || poll !== null || hasImages
                                 }
-                                onClick={() => {
-                                    setPoll(emptyPollDraft);
-                                    requestAnimationFrame(() =>
-                                        document
-                                            .getElementById(
-                                                `${id}-poll-option-0`,
-                                            )
-                                            ?.focus(),
-                                    );
-                                }}
+                                onClick={startPoll}
                                 aria-label="Add poll"
                                 title={
                                     hasImages

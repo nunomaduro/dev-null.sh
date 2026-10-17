@@ -1,4 +1,5 @@
 import { ImagePlus, X } from 'lucide-react';
+import type { RefObject } from 'react';
 import { useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -82,18 +83,21 @@ export function ImagePickerButton({
     disabled,
     onPick,
     className,
+    inputRef,
 }: {
     count: number;
     disabled?: boolean;
     onPick: (files: File[]) => void;
     className?: string;
+    inputRef?: RefObject<HTMLInputElement | null>;
 }) {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const fallbackRef = useRef<HTMLInputElement>(null);
+    const ref = inputRef ?? fallbackRef;
 
     return (
         <>
             <input
-                ref={inputRef}
+                ref={ref}
                 type="file"
                 accept={acceptedTypes.join(',')}
                 multiple
@@ -109,7 +113,7 @@ export function ImagePickerButton({
                 variant="ghost"
                 size="icon"
                 disabled={disabled || count >= maxImages}
-                onClick={() => inputRef.current?.click()}
+                onClick={() => ref.current?.click()}
                 aria-label="Attach images"
                 title={`Attach up to ${maxImages} images`}
                 className={cn('text-muted-foreground', className)}

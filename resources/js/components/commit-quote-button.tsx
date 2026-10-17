@@ -116,6 +116,7 @@ function QuoteComposer({
     } = useStash(user.id, id);
     const attachments = useImageAttachments(images, descriptions, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
 
@@ -132,14 +133,20 @@ function QuoteComposer({
     return (
         <DialogContent
             onEscapeKeyDown={(event) => {
-                if (document.querySelector('[data-mention-suggestions]')) {
+                if (
+                    document.querySelector(
+                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
+                    )
+                ) {
                     event.preventDefault();
                 }
             }}
             onInteractOutside={(event) => {
                 if (
                     event.target instanceof Element &&
-                    event.target.closest('[data-mention-suggestions]')
+                    event.target.closest(
+                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
+                    )
                 ) {
                     event.preventDefault();
                 }
@@ -206,6 +213,14 @@ function QuoteComposer({
                                 value={body}
                                 onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
+                                onImage={() => imageInputRef.current?.click()}
+                                commandContext={{
+                                    surface: 'quote',
+                                    hasPoll: false,
+                                    imageCount: images.length,
+                                    isScheduling: false,
+                                    processing,
+                                }}
                                 onPaste={attachments.onPaste}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
@@ -257,6 +272,7 @@ function QuoteComposer({
                                         count={images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
+                                        inputRef={imageInputRef}
                                         className="size-8"
                                     />
                                     {isRestored && (
