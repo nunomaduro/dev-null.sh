@@ -1,5 +1,13 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Activity, Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
+import {
+    Activity,
+    Bookmark,
+    LogOut,
+    ScrollText,
+    Settings,
+    Shield,
+    UserRound,
+} from 'lucide-react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import {
@@ -12,6 +20,8 @@ import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { clearStashes } from '@/hooks/use-stash';
 import { logout } from '@/routes';
+import { show as showPrivacy } from '@/routes/privacy';
+import { show as showTerms } from '@/routes/terms';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { User } from '@/types';
@@ -83,6 +93,29 @@ export function UserMenuContent({ user }: Props) {
                         </Link>
                     </DropdownMenuItem>
                 )}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={showTerms()}
+                        onClick={cleanup}
+                    >
+                        <ScrollText className="mr-2" />
+                        Terms
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={showPrivacy()}
+                        onClick={cleanup}
+                    >
+                        <Shield className="mr-2" />
+                        Privacy
+                    </Link>
+                </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

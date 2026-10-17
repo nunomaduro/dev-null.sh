@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { GitHubIcon } from '@/components/github-icon';
+import { LegalLinks, SignInAgreement } from '@/components/legal-links';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -67,6 +68,7 @@ export function AppAside({
                             Sign in with GitHub
                         </a>
                     </Button>
+                    <SignInAgreement className="mt-3 text-xs" />
                 </section>
             ) : (
                 <section aria-labelledby="aside-you">
@@ -177,6 +179,7 @@ export function AppAside({
                         ?
                     </kbd>
                 </button>
+                <LegalLinks />
                 <p>Everything else goes to /dev/null.</p>
             </div>
         </aside>

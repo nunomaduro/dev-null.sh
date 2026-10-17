@@ -8,6 +8,7 @@ import {
 } from '@/components/commit-composer-dialog';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
+import { GuestSignIn } from '@/components/guest-sign-in';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
@@ -54,6 +55,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
                 <MobileHeader onSearch={openSearch} />
+                <GuestSignIn />
                 <CommitStarPolling>{children}</CommitStarPolling>
             </main>
 

@@ -83,6 +83,34 @@ final readonly class PageMetadata
     }
 
     /**
+     * The link preview of the privacy policy.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>}
+     */
+    public function privacy(): array
+    {
+        return $this->document(
+            __('/dev/null privacy policy'),
+            __('What /dev/null stores about you, why, who else sees it, how long it is kept, and how to export or delete it.'),
+            route('privacy.show'),
+        );
+    }
+
+    /**
+     * The link preview of the terms of service.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>}
+     */
+    public function terms(): array
+    {
+        return $this->document(
+            __('/dev/null terms of service'),
+            __('The rules for using /dev/null: no tolerance for objectionable content or abusive users, how to report them, and what moderators do.'),
+            route('terms.show'),
+        );
+    }
+
+    /**
      * The link preview and structured data of a commit, from its public preview, stars count, images, and the replies shown under it.
      * The commit's own images are previewed first, with its drawn card as a fallback.
      *
@@ -229,6 +257,27 @@ final readonly class PageMetadata
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
             'username' => $user->username,
+        ];
+    }
+
+    /**
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>}
+     */
+    private function document(string $title, string $description, string $url): array
+    {
+        return [
+            'type' => 'website',
+            'title' => $title,
+            'description' => $description,
+            'url' => $url,
+            'robots' => self::INDEXABLE,
+            'images' => [[
+                'url' => url('/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
         ];
     }
 

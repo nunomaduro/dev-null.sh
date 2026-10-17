@@ -32,12 +32,14 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -95,6 +97,10 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->whereNumber('photo')
         ->name('commit-photo.show');
 });
+
+// Legal, readable by everyone...
+Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
+Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
 
 // Sitemaps...
 Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
