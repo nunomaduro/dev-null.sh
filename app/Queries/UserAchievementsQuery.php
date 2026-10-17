@@ -18,6 +18,22 @@ final readonly class UserAchievementsQuery
     }
 
     /**
+     * @return list<string>
+     */
+    public function unlockedBadgeNames(User $user): array
+    {
+        $names = [];
+
+        foreach ($this->get($user, $user)['badges'] as $badge) {
+            if ($badge['unlocked']) {
+                $names[] = $badge['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
      * @param  array{longest: int, current: int}|null  $streaks
      * @return array{
      *     level: int,

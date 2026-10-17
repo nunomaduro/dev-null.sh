@@ -2,13 +2,27 @@ import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { CommitUndoToast } from '@/components/commit-undo-toast';
+import { dropConfetti } from '@/lib/confetti';
 import { emojify } from '@/lib/emoji';
 import { shortHash } from '@/lib/utils';
 
 export function useFlashToast(): void {
     useEffect(() => {
         return router.on('flash', (event) => {
-            const { toast: data, committed, deleted } = event.detail.flash;
+            const {
+                toast: data,
+                committed,
+                deleted,
+                achievementsUnlocked,
+            } = event.detail.flash;
+
+            if (achievementsUnlocked?.length) {
+                dropConfetti();
+
+                for (const name of achievementsUnlocked) {
+                    toast('achievement unlocked 🎉', { description: name });
+                }
+            }
 
             if (deleted) {
                 const id = `deleted-${deleted.id}`;
