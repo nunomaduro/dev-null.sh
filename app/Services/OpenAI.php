@@ -83,8 +83,6 @@ final readonly class OpenAI
     {
         $embeddings = $this->embedMany([$text]);
 
-        throw_if($embeddings === [], UnexpectedValueException::class, 'OpenAI returned no embedding.');
-
         return $embeddings[0];
     }
 
@@ -107,6 +105,8 @@ final readonly class OpenAI
             ->post('embeddings', ['model' => self::EMBEDDING_MODEL, 'input' => $texts])
             ->throw()
             ->json('data');
+
+        throw_if(count($data) !== count($texts), UnexpectedValueException::class, 'OpenAI did not return an embedding for every input.');
 
         usort($data, fn (array $result, array $other): int => $result['index'] <=> $other['index']);
 
