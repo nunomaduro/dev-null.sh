@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 
 export function SegmentedControl<T>({
@@ -17,21 +17,64 @@ export function SegmentedControl<T>({
     onChange: (value: T) => void;
     className?: string;
 }) {
+    const selectedIndex = options.findIndex((option) => option.value === value);
+
+    const handleKeyDown = (
+        event: KeyboardEvent<HTMLButtonElement>,
+        index: number,
+    ): void => {
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+
+        let nextIndex: number;
+
+        switch (event.key) {
+            case 'ArrowRight':
+            case 'ArrowDown':
+                nextIndex = (index + 1) % options.length;
+                break;
+            case 'ArrowLeft':
+            case 'ArrowUp':
+                nextIndex = (index - 1 + options.length) % options.length;
+                break;
+            case 'Home':
+                nextIndex = 0;
+                break;
+            case 'End':
+                nextIndex = options.length - 1;
+                break;
+            default:
+                return;
+        }
+
+        event.preventDefault();
+        event.currentTarget.parentElement
+            ?.querySelectorAll<HTMLButtonElement>('button[role="radio"]')
+            [nextIndex]?.focus();
+
+        if (nextIndex !== index || options[nextIndex].value !== value) {
+            onChange(options[nextIndex].value);
+        }
+    };
+
     return (
         <div
             role="radiogroup"
             aria-label={label}
             className={cn('inline-flex gap-1 rounded-lg border p-1', className)}
         >
-            {options.map((option) => (
+            {options.map((option, index) => (
                 <button
                     key={option.label}
                     type="button"
                     role="radio"
                     aria-checked={option.value === value}
+                    tabIndex={index === Math.max(selectedIndex, 0) ? 0 : -1}
                     onClick={() => onChange(option.value)}
+                    onKeyDown={(event) => handleKeyDown(event, index)}
                     className={cn(
-                        'relative isolate rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        'relative isolate rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                         {
                             'text-primary hover:bg-transparent hover:text-primary':
                                 option.value === value,

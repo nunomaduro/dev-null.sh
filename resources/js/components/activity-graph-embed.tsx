@@ -3,10 +3,10 @@ import { Check, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Heading from '@/components/heading';
+import { SegmentedControl } from '@/components/segmented-control';
 import { Button } from '@/components/ui/button';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
-import { cn } from '@/lib/utils';
 
 type GraphTheme = 'light' | 'dark' | 'auto';
 
@@ -74,31 +74,13 @@ export default function ActivityGraphEmbed({
                 description="Your commit graph as an SVG for your GitHub profile README, or anywhere Markdown renders. It only shows approved commits and refreshes about once an hour."
             />
 
-            <div
-                role="radiogroup"
-                aria-label="Graph theme"
-                className="inline-flex gap-1 rounded-lg border p-1"
-            >
-                {themes.map(({ value, icon: Icon, label }) => (
-                    <button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={theme === value}
-                        onClick={() => setTheme(value)}
-                        className={cn(
-                            'flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                            {
-                                'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary':
-                                    theme === value,
-                            },
-                        )}
-                    >
-                        <Icon className="size-4" />
-                        {label}
-                    </button>
-                ))}
-            </div>
+            <SegmentedControl
+                label="Graph theme"
+                name="graph-theme"
+                options={themes}
+                value={theme}
+                onChange={setTheme}
+            />
             <p className="mt-2 text-sm text-muted-foreground">
                 {theme === 'auto'
                     ? 'Follows the color scheme of whoever is reading.'

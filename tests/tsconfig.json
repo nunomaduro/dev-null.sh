@@ -5,8 +5,11 @@
         "allowImportingTsExtensions": true
     },
     "include": [
+        "../resources/js/types/global.d.ts",
         "Unit/**/*.test.ts",
         "Unit/DraftStash.test.tsx",
+        "Unit/SegmentedControl.test.tsx",
+        "Unit/WhoToFollowTabs.test.tsx",
         "draft-images.config.ts"
     ]
 }
