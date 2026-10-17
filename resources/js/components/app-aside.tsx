@@ -1,7 +1,8 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Deferred, Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { laneColor } from '@/lib/utils';
@@ -140,13 +141,18 @@ export function AppAside({
                         aria-hidden
                         className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"
                     />
-                    <span>
-                        {onlineDevelopersCount}{' '}
-                        {onlineDevelopersCount === 1
-                            ? 'developer'
-                            : 'developers'}{' '}
-                        online
-                    </span>
+                    <Deferred
+                        data="onlineDevelopersCount"
+                        fallback={<Skeleton className="h-3.5 w-24" />}
+                    >
+                        <span>
+                            {onlineDevelopersCount}{' '}
+                            {onlineDevelopersCount === 1
+                                ? 'developer'
+                                : 'developers'}{' '}
+                            online
+                        </span>
+                    </Deferred>
                 </div>
                 <button
                     type="button"

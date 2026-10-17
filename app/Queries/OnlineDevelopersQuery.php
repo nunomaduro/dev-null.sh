@@ -17,17 +17,19 @@ final readonly class OnlineDevelopersQuery
     /**
      * Cache TTL in seconds to throttle database queries.
      */
-    public const int CACHE_TTL_SECONDS = 15;
+    public const int CACHE_TTL_SECONDS = 60;
 
     /**
      * Returns the number of developers active within the online window.
      */
     public function count(): int
     {
-        return (int) Cache::remember('online_developers_count', self::CACHE_TTL_SECONDS, function (): int {
-            return User::query()
+        return (int) Cache::remember(
+            'online_developers_count',
+            self::CACHE_TTL_SECONDS,
+            fn (): int => User::query()
                 ->where('last_active_at', '>=', now()->subMinutes(self::ONLINE_WINDOW_MINUTES))
-                ->count();
-        });
+                ->count(),
+        );
     }
 }

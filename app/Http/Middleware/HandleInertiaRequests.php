@@ -56,7 +56,7 @@ final class HandleInertiaRequests extends Middleware
                 'unreadNotificationsCount' => fn (): int => $request->user()?->notifications()->relevant()->unread()->count() ?? 0,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
-            'onlineDevelopersCount' => fn (): int => resolve(OnlineDevelopersQuery::class)->count(),
+            'onlineDevelopersCount' => Inertia::defer(fn (): int => resolve(OnlineDevelopersQuery::class)->count()),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $showsWhoToFollow ? [

@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Deferred, Link, usePage } from '@inertiajs/react';
 import {
     Bell,
     Bookmark,
@@ -15,6 +15,7 @@ import ModerationController from '@/actions/App/Http/Controllers/ModerationContr
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -146,13 +147,18 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                         aria-hidden
                         className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"
                     />
-                    <span>
-                        {onlineDevelopersCount}{' '}
-                        {onlineDevelopersCount === 1
-                            ? 'developer'
-                            : 'developers'}{' '}
-                        online
-                    </span>
+                    <Deferred
+                        data="onlineDevelopersCount"
+                        fallback={<Skeleton className="h-3.5 w-24" />}
+                    >
+                        <span>
+                            {onlineDevelopersCount}{' '}
+                            {onlineDevelopersCount === 1
+                                ? 'developer'
+                                : 'developers'}{' '}
+                            online
+                        </span>
+                    </Deferred>
                 </span>
             </Link>
 
