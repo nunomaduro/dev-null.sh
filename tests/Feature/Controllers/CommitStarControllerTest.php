@@ -120,3 +120,72 @@ it('shows the star count and whether the viewer starred the commit', function ()
             ->where('commits.data.1.stars_count', 2)
             ->where('commits.data.1.starred', true));
 });
+
+it('lists who starred their commit, newest first', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $first = User::factory()->create(['username' => 'first']);
+    $second = User::factory()->create(['username' => 'second']);
+
+    $first->starredCommits()->attach($commit, ['created_at' => now()->subMinute()]);
+    $second->starredCommits()->attach($commit);
+    User::factory()->create()->starredCommits()->attach(Commit::factory()->for($user)->create());
+
+    $response = $this->actingAs($user)->getJson(route('commit-star.index', $commit));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $second->id)
+        ->assertJsonPath('data.0.username', 'second')
+        ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
+        ->assertJsonMissingPath('data.0.pivot')
+        ->assertJsonMissingPath('data.0.email')
+        ->assertJsonPath('data.1.username', 'first')
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('next_cursor', null);
+});
+
+it('lists who starred their commit in pages', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+
+    User::factory()->count(21)->create()->each(fn (User $stargazer) => $stargazer->starredCommits()->attach($commit));
+
+    $page = $this->actingAs($user)->getJson(route('commit-star.index', $commit))
+        ->assertOk()
+        ->assertJsonCount(20, 'data');
+
+    $this->actingAs($user)->getJson(route('commit-star.index', ['commit' => $commit, 'cursor' => $page->json('next_cursor')]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('next_cursor', null);
+});
+
+it('leaves out who starred their commit across a block in either direction', function (bool $userBlocks): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $blocked = User::factory()->create();
+
+    $blocked->starredCommits()->attach($commit);
+    $userBlocks ? $user->blocking()->attach($blocked) : $blocked->blocking()->attach($user);
+
+    $this->actingAs($user)->getJson(route('commit-star.index', $commit))
+        ->assertOk()
+        ->assertJsonCount(0, 'data');
+})->with([true, false]);
+
+it('may not list who starred the commit of someone else', function (): void {
+    $commit = Commit::factory()->create();
+
+    User::factory()->create()->starredCommits()->attach($commit);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-star.index', $commit))
+        ->assertNotFound();
+});
+
+it('requires authentication to list who starred a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->getJson(route('commit-star.index', $commit))
+        ->assertUnauthorized();
+});

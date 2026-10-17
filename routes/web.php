@@ -195,6 +195,8 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
         ->middleware('throttle:pins')
         ->name('commit-pin.destroy');
+    Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+        ->name('commit-star.index');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
