@@ -69,11 +69,10 @@ export function AchievementsDialog({
                             Developer Achievements
                         </DialogTitle>
                         <span
-                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
+                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
                                 borderColor: `${lane}40`,
                                 backgroundColor: `${lane}15`,
-                                color: lane,
                             }}
                         >
                             Lv. {achievements.level} · {achievements.rank}
@@ -176,7 +175,7 @@ export function AchievementsDialog({
                                                 className={cn(
                                                     'rounded px-1.5 py-0.5 text-[10px] font-medium',
                                                     badge.unlocked
-                                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                                         : 'text-muted-foreground',
                                                 )}
                                             >
@@ -221,7 +220,7 @@ export function AchievementsDialog({
                                             ? 'border-(--lane) bg-card ring-1 ring-(--lane)'
                                             : rank.achieved
                                               ? 'border-border bg-card'
-                                              : 'border-dashed border-border/60 bg-muted/20 opacity-70',
+                                              : 'border-dashed border-border/60 bg-muted/20',
                                     )}
                                 >
                                     <div className="flex items-center gap-2.5">
@@ -229,7 +228,7 @@ export function AchievementsDialog({
                                             className={cn(
                                                 'flex size-6 shrink-0 items-center justify-center rounded text-xs font-bold',
                                                 isCurrent
-                                                    ? 'bg-(--lane) text-background'
+                                                    ? 'bg-accent text-foreground ring-1 ring-(--lane)'
                                                     : rank.achieved
                                                       ? 'bg-accent text-foreground'
                                                       : 'bg-muted text-muted-foreground',
@@ -243,13 +242,7 @@ export function AchievementsDialog({
                                                     {rank.rank}
                                                 </span>
                                                 {isCurrent && (
-                                                    <span
-                                                        className="py-0.2 rounded px-1.5 text-[10px] font-medium"
-                                                        style={{
-                                                            backgroundColor: `${lane}20`,
-                                                            color: lane,
-                                                        }}
-                                                    >
+                                                    <span className="py-0.2 rounded bg-accent px-1.5 text-[10px] font-medium text-foreground">
                                                         CURRENT
                                                     </span>
                                                 )}
@@ -266,7 +259,7 @@ export function AchievementsDialog({
                                         </span>
                                         <div className="text-[10px] text-muted-foreground">
                                             {rank.achieved ? (
-                                                <span className="text-emerald-600 dark:text-emerald-400">
+                                                <span className="text-emerald-700 dark:text-emerald-400">
                                                     ✓ Achieved
                                                 </span>
                                             ) : (
@@ -283,7 +276,7 @@ export function AchievementsDialog({
                 )}
 
                 {/* Dry Unix XP Formula Footnote */}
-                <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground/80">
+                <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
                     2/star given
                 </p>

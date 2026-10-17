@@ -121,7 +121,7 @@ export function AchievementsShelf({
                                             'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
                                             badge.unlocked
                                                 ? 'border-border bg-card text-foreground shadow-xs hover:border-(--lane)'
-                                                : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground/60 hover:border-muted-foreground/60',
+                                                : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground hover:border-muted-foreground/60',
                                         )}
                                         style={
                                             badge.unlocked
@@ -142,7 +142,7 @@ export function AchievementsShelf({
                                         <span>{badge.name}</span>
                                         {!badge.unlocked &&
                                             badge.target > 1 && (
-                                                <span className="text-[10px] text-muted-foreground/60">
+                                                <span className="text-[10px] text-muted-foreground">
                                                     ({badge.progress}/
                                                     {badge.target})
                                                 </span>
