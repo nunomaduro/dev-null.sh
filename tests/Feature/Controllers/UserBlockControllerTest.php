@@ -18,7 +18,7 @@ it('may block a user', function (): void {
     $response->assertRedirectToRoute('user.show', $blocked)
         ->assertInertiaFlash('toast', [
             'type' => 'success',
-            'message' => "Blocked @octocat. Neither of you can follow, reply to, or star the other, or see each other's commits.",
+            'message' => "Blocked @octocat. Neither of you can message, follow, reply to, or star the other, or see each other's commits.",
         ]);
 
     expect($user->isBlocking($blocked))->toBeTrue()

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
 use Carbon\CarbonInterface;
@@ -226,4 +227,17 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
+}
+
+/**
+ * Sends a chat message the way the composer does, so tests start from real conversations.
+ */
+function sendChatMessage(User $sender, User $recipient, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
 }

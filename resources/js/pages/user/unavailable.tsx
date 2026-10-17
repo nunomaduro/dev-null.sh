@@ -34,8 +34,8 @@ export default function Unavailable({
                         <EmptyFeed command={`fatal: @${username} is blocked`}>
                             <p>
                                 You blocked {blockedUser.name}. Neither of you
-                                can follow, reply to, or star the other, or see
-                                each other's commits.
+                                can message, follow, reply to, or star the
+                                other, or see each other's commits.
                             </p>
                             <div className="mt-5 flex flex-wrap justify-center gap-2">
                                 <Button variant="outline" asChild>

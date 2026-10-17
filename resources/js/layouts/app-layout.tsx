@@ -2,6 +2,7 @@ import { usePage, usePoll } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
+import { ChatDock } from '@/components/chat/chat-dock';
 import {
     CommitComposerDialog,
     focusVisibleComposer,
@@ -13,6 +14,7 @@ import { SearchDialog } from '@/components/search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
+import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -26,6 +28,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
+    const isMessages = component.startsWith('conversation/');
     const compose = useCallback(() => {
         if (isGuest) {
             signIn();
@@ -52,16 +55,30 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {component !== 'notification/index' && <NotificationCountPolling />}
             <AppNav onSearch={openSearch} onCompose={compose} />
 
-            <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
+            <main
+                className={cn(
+                    'min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0',
+                    { 'md:max-w-[940px]': isMessages },
+                )}
+            >
                 <MobileHeader onSearch={openSearch} />
                 <CommitStarPolling>{children}</CommitStarPolling>
             </main>
 
-            <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />
+            {!isMessages && (
+                <AppAside
+                    onShowShortcuts={showShortcuts}
+                    onSearch={openSearch}
+                />
+            )}
 
             <MobileNav />
 
             <CommitImageViewer />
+
+            {auth.user !== null && auth.remotes !== null && !isMessages && (
+                <ChatDock user={auth.user} />
+            )}
 
             <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
 
@@ -82,7 +99,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 function NotificationCountPolling() {
     usePoll(
         30_000,
-        { only: ['auth.unreadNotificationsCount'] },
+        { only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'] },
         { mode: 'rest', background: 'pause' },
     );
 

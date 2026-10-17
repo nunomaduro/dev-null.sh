@@ -1,3 +1,4 @@
+import type { RemotesFrom } from '@/types/conversation';
 import type { Log } from '@/types/log';
 
 /**
@@ -36,6 +37,8 @@ export type Auth = {
     isAdmin: boolean;
     log: Log | null;
     unreadNotificationsCount: number;
+    unreadMessagesCount: number;
+    remotes: { from: RemotesFrom; pull_receipts: boolean } | null;
     pasteis: { remaining: number; day: string } | null;
 };
 

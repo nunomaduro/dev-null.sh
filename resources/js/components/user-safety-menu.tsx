@@ -115,10 +115,10 @@ export function UserSafetyMenu({
                     <DialogTitle>Block @{user.username}?</DialogTitle>
                     <DialogDescription>
                         You'll stop following each other. Neither of you will be
-                        able to follow, reply to, or star the other, or see each
-                        other's commits. They won't be told, but they'll see
-                        your profile as unavailable. You can unblock them any
-                        time from your settings.
+                        able to message, follow, reply to, or star the other, or
+                        see each other's commits. They won't be told, but
+                        they'll see your profile as unavailable. You can unblock
+                        them any time from your settings.
                     </DialogDescription>
 
                     <DialogFooter className="gap-2">

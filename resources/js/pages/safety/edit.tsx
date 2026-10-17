@@ -114,7 +114,7 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Blocked"
-                    description="Neither of you can follow, reply to, or star the other, or see each other's commits. Unblocking doesn't bring back follows."
+                    description="Neither of you can message, follow, reply to, or star the other, or see each other's commits. Unblocking doesn't bring back follows."
                 />
                 <PeopleList
                     people={blocked}

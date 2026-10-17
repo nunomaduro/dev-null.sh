@@ -48,20 +48,29 @@ const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
     term,
 }));
 
+/**
+ * Searches developers and commits. Picking a developer for something else, like a new conversation, narrows
+ * it to developers and hands the pick back instead of opening their profile.
+ */
 export function SearchDialog({
     open,
     onOpenChange,
+    onPickDeveloper,
+    excludeId,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onPickDeveloper?: (user: User) => void;
+    excludeId?: string;
 }) {
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
+    const isPicking = onPickDeveloper !== undefined;
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
-    const intent = searchIntent(term);
+    const intent = isPicking ? 'developer' : searchIntent(term);
     const commitTerm = searchesCommits(intent) ? term : '';
 
     const developers = useDebouncedSearch(
@@ -75,7 +84,9 @@ export function SearchDialog({
         (value, signal) => searchCommits(value, commitLimit, signal),
     );
 
-    const visibleDevelopers = developers.resultsFor(developerTerm);
+    const visibleDevelopers = developers
+        .resultsFor(developerTerm)
+        .filter((user) => user.id !== excludeId);
     const visibleCommits = commits.resultsFor(commitTerm);
     const results = optionsFor(
         intent,
@@ -88,7 +99,8 @@ export function SearchDialog({
         developers.hasSearched(developerTerm) &&
         (commitTerm === '' || commits.hasSearched(commitTerm));
     const isEmpty = term === '';
-    const isAwaitingDeveloperName = awaitsDeveloperName(term);
+    const isAwaitingDeveloperName =
+        awaitsDeveloperName(term) || (isPicking && isEmpty);
     const isThrottled =
         developers.isThrottled(developerTerm) ||
         commits.isThrottled(commitTerm);
@@ -98,7 +110,8 @@ export function SearchDialog({
         hasSearched &&
         !isLoading &&
         results.length === 0;
-    const options = isEmpty || foundNothing ? suggestionOptions : results;
+    const options =
+        isPicking || !(isEmpty || foundNothing) ? results : suggestionOptions;
 
     const type = (value: string) => {
         setQuery(value);
@@ -118,6 +131,13 @@ export function SearchDialog({
         }
 
         close();
+
+        if (option.kind === 'developer' && onPickDeveloper) {
+            onPickDeveloper(option.user);
+
+            return;
+        }
+
         router.visit(hrefFor(option, term));
     };
 
@@ -154,11 +174,12 @@ export function SearchDialog({
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
-                        Search
+                        {isPicking ? 'New remote' : 'Search'}
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description className="sr-only">
-                        Find developers by name or handle, or commits by what
-                        they are about.
+                        {isPicking
+                            ? 'Find a developer by name or handle to message.'
+                            : 'Find developers by name or handle, or commits by what they are about.'}
                     </DialogPrimitive.Description>
 
                     <div className="flex items-center gap-3 border-b px-4">
@@ -169,7 +190,11 @@ export function SearchDialog({
                             value={query}
                             onChange={(event) => type(event.target.value)}
                             onKeyDown={onKeyDown}
-                            placeholder="Search developers or commits"
+                            placeholder={
+                                isPicking
+                                    ? 'Message a developer'
+                                    : 'Search developers or commits'
+                            }
                             role="combobox"
                             aria-expanded={options.length > 0}
                             aria-controls="search-results"
@@ -232,6 +257,13 @@ export function SearchDialog({
                                     onHover={() => setActiveIndex(index)}
                                     onOpen={close}
                                     onPick={type}
+                                    onPickDeveloper={
+                                        onPickDeveloper &&
+                                        ((user) => {
+                                            close();
+                                            onPickDeveloper(user);
+                                        })
+                                    }
                                 />
                             ))}
                         </ul>
@@ -251,11 +283,15 @@ export function SearchDialog({
                             <kbd className="font-mono">↑↓</kbd> to move
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <kbd className="font-mono">↵</kbd> to open
+                            <kbd className="font-mono">↵</kbd>{' '}
+                            {isPicking ? 'to message' : 'to open'}
                         </span>
-                        <span className="flex items-center gap-1.5">
-                            <kbd className="font-mono">@</kbd> for developers
-                        </span>
+                        {!isPicking && (
+                            <span className="flex items-center gap-1.5">
+                                <kbd className="font-mono">@</kbd> for
+                                developers
+                            </span>
+                        )}
                         <span className="ml-auto flex items-center gap-1.5">
                             <kbd className="font-mono">
                                 {keys.combo(keys.mod, 'K')}
@@ -421,6 +457,7 @@ function ResultOption({
     onHover,
     onOpen,
     onPick,
+    onPickDeveloper,
 }: {
     option: Option;
     term: string;
@@ -429,6 +466,7 @@ function ResultOption({
     onHover: () => void;
     onOpen: () => void;
     onPick: (term: string) => void;
+    onPickDeveloper?: (user: User) => void;
 }) {
     const className = cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
@@ -464,12 +502,18 @@ function ResultOption({
                 role="option"
                 aria-selected={isActive}
             >
-                {option.kind === 'suggestion' ? (
+                {option.kind === 'suggestion' ||
+                (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
                         tabIndex={-1}
                         onMouseMove={onHover}
-                        onClick={() => onPick(option.term)}
+                        onClick={() =>
+                            option.kind === 'developer'
+                                ? onPickDeveloper?.(option.user)
+                                : option.kind === 'suggestion' &&
+                                  onPick(option.term)
+                        }
                         className={className}
                     >
                         {content}

@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\ConversationsQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
@@ -50,6 +51,11 @@ final class HandleInertiaRequests extends Middleware
                 'isAdmin' => $isAdmin,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
+                'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
+                'remotes' => fn (): ?array => $user?->remotes_enabled ? [
+                    'from' => $user->remotes_from,
+                    'pull_receipts' => $user->pull_receipts,
+                ] : null,
                 'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),

@@ -91,6 +91,9 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'pasteis_received' => 17,
             'pasteis_given_today' => 6,
             'pasteis_given_on' => '2026-10-15',
+            'remotes_enabled' => false,
+            'remotes_from' => 'following',
+            'pull_receipts' => true,
             'pinned_commit_id' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
@@ -104,6 +107,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'followers' => [],
         'muting' => [],
         'blocking' => [],
+        'messages' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'sessions' => [],
@@ -394,4 +398,17 @@ it('also limits exports to five a minute per user independently of the hourly bu
     $this->travel(1)->minute();
 
     $this->actingAs($user)->get(route('export'))->assertOk();
+});
+
+it('exports the messages the user sent, and not the ones they received', function (): void {
+    $user = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    sendChatMessage($user, $partner, 'merged it this morning');
+    sendChatMessage($partner, $user, 'ship it');
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['messages'])->toBe([
+        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'created_at' => now()->toIso8601String()],
+    ]);
 });
