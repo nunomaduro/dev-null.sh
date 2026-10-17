@@ -84,6 +84,7 @@ export function CommitCard({
     } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
+    const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(commit, initialReplies, loadsReplies);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
@@ -94,6 +95,11 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
+
+    const cancelDeletion = () => {
+        setDeletion('idle');
+        deleteButtonRef.current?.focus();
+    };
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -257,6 +263,7 @@ export function CommitCard({
 
                                     {isDeletable && (
                                         <button
+                                            ref={deleteButtonRef}
                                             type="button"
                                             onClick={() =>
                                                 setDeletion('confirming')
@@ -395,7 +402,7 @@ export function CommitCard({
                                     aria-label="Confirm delete"
                                     onKeyDown={(event) => {
                                         if (event.key === 'Escape') {
-                                            setDeletion('idle');
+                                            cancelDeletion();
                                         }
                                     }}
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
@@ -408,7 +415,7 @@ export function CommitCard({
                                         variant="ghost"
                                         size="sm"
                                         autoFocus
-                                        onClick={() => setDeletion('idle')}
+                                        onClick={cancelDeletion}
                                     >
                                         Cancel
                                     </Button>
