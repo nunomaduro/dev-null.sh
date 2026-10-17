@@ -263,12 +263,23 @@ final class User extends Authenticatable
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            ...$this->openGraphIdentity(),
+            $this->bio,
             $this->commits_count,
             $this->following_count,
             $this->followers_count,
         ]));
+    }
+
+    /**
+     * What every link preview image draws of the user, so saving anything else leaves them cached.
+     *
+     * @return list<int|string|null>
+     */
+    public function openGraphIdentity(): array
+    {
+        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
     }
 
     /**

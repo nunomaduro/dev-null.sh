@@ -933,6 +933,23 @@ it('changes the link preview image version only when the public commit changes',
     expect($version())->not->toBe($initial);
 });
 
+it('changes the link preview image version only when something drawn of the author changes', function (): void {
+    $commit = Commit::factory()->for(User::factory()->state(['log' => Log::Following]))->create();
+
+    $version = fn (): string => Str::betweenFirst((string) $this->get(route('commit.show', [$commit->user, $commit]))->getContent(), 'og.png?v=', '"');
+
+    $initial = $version();
+
+    $this->travel(1)->minute();
+    $commit->user->update(['log' => Log::Trending]);
+
+    expect($version())->toBe($initial);
+
+    $commit->user->update(['name' => 'The Octocat']);
+
+    expect($version())->not->toBe($initial);
+});
+
 it('returns not found to guests for commits that are not approved', function (Closure $factory): void {
     $commit = $factory();
 

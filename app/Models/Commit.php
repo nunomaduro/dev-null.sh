@@ -270,10 +270,10 @@ final class Commit extends Model
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            $this->body,
             $this->replies_count,
-            $this->user?->updated_at->getTimestamp(),
+            $this->user?->openGraphIdentity(),
             $this->parent?->user?->username,
         ]));
     }

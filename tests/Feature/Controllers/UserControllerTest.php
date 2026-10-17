@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -340,6 +341,23 @@ it('changes the link preview image version only when public profile data changes
     expect($version())->toBe($initial);
 
     Commit::factory()->for($user)->create();
+
+    expect($version())->not->toBe($initial);
+});
+
+it('changes the link preview image version only when something drawn on it changes', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'log' => Log::Following]);
+
+    $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
+
+    $initial = $version();
+
+    $this->travel(1)->minute();
+    $user->update(['log' => Log::Trending]);
+
+    expect($version())->toBe($initial);
+
+    $user->update(['name' => 'The Octocat']);
 
     expect($version())->not->toBe($initial);
 });
