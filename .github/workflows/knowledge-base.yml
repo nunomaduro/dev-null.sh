@@ -1,0 +1,49 @@
+name: Knowledge base embeddings
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - KNOWLEDGE_BASE.md
+      - .github/workflows/knowledge-base.yml
+      - .github/scripts/embed-knowledge-base.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-knowledge-base
+  cancel-in-progress: false
+
+jobs:
+  embed:
+    if: github.repository == 'nunomaduro/dev-null.sh' && github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Laravel Cloud CLI
+        run: |
+          composer global require laravel/cloud-cli:0.6.7 --no-interaction --no-progress --prefer-dist
+          composer global config bin-dir --absolute >> "$GITHUB_PATH"
+
+      - name: Wait for production and update embeddings
+        env:
+          LARAVEL_CLOUD_TOKEN: ${{ secrets.LARAVEL_CLOUD_TOKEN }}
+          LARAVEL_CLOUD_ENVIRONMENT_ID: ${{ vars.LARAVEL_CLOUD_ENVIRONMENT_ID }}
+        run: bash .github/scripts/embed-knowledge-base.sh
