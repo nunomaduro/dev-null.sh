@@ -84,3 +84,96 @@ it('reuses the rendered image until the profile changes', function (): void {
 it('returns not found for unknown usernames', function (): void {
     $this->get('/@missing/og.png')->assertNotFound();
 });
+
+it('loads local asset avatars directly from disk without making HTTP requests', function (): void {
+    $user = User::factory()->create(['avatar_url' => asset('images/tom.webp')]);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('blocks non-https avatar URLs and falls back to an initial without requesting anything', function (): void {
+    $user = User::factory()->create(['avatar_url' => 'http://169.254.169.254/latest/meta-data']);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('blocks private IP avatar URLs without making HTTP requests', function (): void {
+    $user = User::factory()->create(['avatar_url' => 'https://127.0.0.1/avatar.png']);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('does not follow redirects when downloading remote avatars', function (): void {
+    Http::fake([
+        'https://example.com/avatar.png' => Http::response('', 302, ['Location' => 'http://169.254.169.254/latest/meta-data']),
+    ]);
+
+    $user = User::factory()->create(['avatar_url' => 'https://example.com/avatar.png']);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '169.254'));
+});
+
+it('loads local asset avatars with query strings without making HTTP requests', function (): void {
+    $user = User::factory()->create(['avatar_url' => asset('images/tom.webp?v=4')]);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('falls back to an initial when a local asset does not exist', function (): void {
+    $user = User::factory()->create(['avatar_url' => asset('images/missing-avatar.png')]);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('falls back to an initial when a local asset is not an image', function (): void {
+    $user = User::factory()->create(['avatar_url' => asset('robots.txt')]);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('blocks IPv6 loopback avatar URLs without making HTTP requests', function (): void {
+    $user = User::factory()->create(['avatar_url' => 'https://[::1]/avatar.png']);
+
+    $response = $this->get(route('user-open-graph-image.show', $user));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});

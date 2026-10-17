@@ -6,10 +6,12 @@ namespace App\Services;
 
 use App\Models\User;
 use GdImage;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * Draws link preview images in the light Commit Graph theme. Everything is drawn at twice the size and scaled down, since GD only anti-aliases text.
@@ -45,6 +47,35 @@ final readonly class OpenGraphCanvas
     private const int WHITE = 0xFFFFFF;
 
     private const array LANES = [0xD9480F, 0x2F9E44, 0x9C36B5, 0x0C8599, 0xC2255C, 0xB7791F];
+
+    private const int MAX_AVATAR_BYTES = 2_097_152;
+
+    /**
+     * Non-public IP ranges: carrier-grade NAT, IETF protocol assignments, 6to4 relays,
+     * benchmarking, documentation, multicast for IPv4; NAT64, discard, Teredo, documentation,
+     * site-local, multicast, and IPv4-translated addresses for IPv6.
+     *
+     * @var list<string>
+     */
+    private const array BLOCKED_RANGES = [
+        '100.64.0.0/10',
+        '192.0.0.0/24',
+        '192.0.2.0/24',
+        '192.88.99.0/24',
+        '198.18.0.0/15',
+        '198.51.100.0/24',
+        '203.0.113.0/24',
+        '224.0.0.0/4',
+        '64:ff9b::/96',
+        '64:ff9b:1::/48',
+        '100::/64',
+        '2001::/32',
+        '2001:db8::/32',
+        '2002::/16',
+        'fec0::/10',
+        'ff00::/8',
+        '::ffff:0:0:0/96',
+    ];
 
     private GdImage $image;
 
@@ -305,23 +336,106 @@ final readonly class OpenGraphCanvas
 
     private function download(?string $url): ?GdImage
     {
-        if ($url === null) {
+        if ($url === null || $url === '') {
+            return null;
+        }
+
+        if ($localFile = $this->localFile($url)) {
+            $data = @file_get_contents($localFile);
+
+            if ($data === false || mb_strlen($data) > self::MAX_AVATAR_BYTES || @getimagesizefromstring($data) === false) {
+                return null;
+            }
+
+            $avatar = @imagecreatefromstring($data);
+
+            return $avatar instanceof GdImage ? $avatar : null;
+        }
+
+        if (! $this->isAllowedRemote($url)) {
             return null;
         }
 
         try {
-            $response = Http::timeout(3)->connectTimeout(2)->get($url);
-        } catch (ConnectionException) {
+            $response = Http::timeout(3)
+                ->connectTimeout(2)
+                ->withoutRedirecting()
+                ->withOptions([
+                    'progress' => fn (int $expected, int $downloaded): bool => $downloaded > self::MAX_AVATAR_BYTES,
+                ])
+                ->get($url);
+        } catch (ConnectionException|RequestException) {
             return null;
         }
 
-        if (! $response->successful() || @getimagesizefromstring($response->body()) === false) {
+        if (! $response->successful()
+            || mb_strlen($response->body()) > self::MAX_AVATAR_BYTES
+            || @getimagesizefromstring($response->body()) === false) {
             return null;
         }
 
         $avatar = @imagecreatefromstring($response->body());
 
         return $avatar instanceof GdImage ? $avatar : null;
+    }
+
+    /**
+     * Resolves local public asset paths (such as Tom's avatar) directly from disk, preventing unnecessary HTTP loopback calls.
+     */
+    private function localFile(string $url): ?string
+    {
+        $assetBase = asset('');
+
+        if (! str_starts_with($url, $assetBase)) {
+            return null;
+        }
+
+        $path = mb_substr($url, mb_strlen($assetBase));
+
+        if (str_contains($path, '?')) {
+            $path = (string) mb_strstr($path, '?', true);
+        }
+
+        $fullPath = public_path($path);
+        $realPublic = realpath(public_path());
+        $realFile = realpath($fullPath);
+
+        if ($realPublic !== false && $realFile !== false && str_starts_with($realFile, $realPublic.DIRECTORY_SEPARATOR) && is_file($realFile)) {
+            return $realFile;
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks if the remote avatar URL is safe to fetch: strictly HTTPS, default port, without credentials,
+     * and not pointing to localhost, private, or reserved IP networks.
+     */
+    private function isAllowedRemote(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        if (! is_array($parts)
+            || ($parts['scheme'] ?? null) !== 'https'
+            || ! isset($parts['host'])
+            || $parts['host'] === ''
+            || mb_strtolower($parts['host']) === 'localhost'
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || (isset($parts['port']) && $parts['port'] !== 443)) {
+            return false;
+        }
+
+        $host = mb_trim($parts['host'], '[]');
+
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+                || IpUtils::checkIp($host, self::BLOCKED_RANGES)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function ellipsis(string $text): string
