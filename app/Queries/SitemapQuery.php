@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use stdClass;
 
 final readonly class SitemapQuery
 {
@@ -27,9 +31,9 @@ final readonly class SitemapQuery
     }
 
     /**
-     * @return Collection<int, User>
+     * @return EloquentCollection<int, User>
      */
-    public function usersOn(int $page): Collection
+    public function usersOn(int $page): EloquentCollection
     {
         return $this->users()
             ->select(['id', 'username', 'updated_at'])
@@ -39,16 +43,35 @@ final readonly class SitemapQuery
     }
 
     /**
-     * @return Collection<int, Commit>
+     * Sitemaps need only a few scalar columns. Avoid hydrating 10,000 Eloquent
+     * models and their user relations on every request.
+     *
+     * @return Collection<int, stdClass>
      */
     public function commitsOn(int $page): Collection
     {
-        return $this->commits()
-            ->select(['id', 'user_id', 'updated_at'])
-            ->with(['user:id,username', 'images:id,commit_id,position'])
-            ->orderBy('id')
+        return DB::table('commits')
+            ->join('users', 'users.id', '=', 'commits.user_id')
+            ->where('commits.status', CommitStatus::Approved->value)
+            ->whereNull('commits.deleted_at')
+            ->orderBy('commits.id')
             ->forPage($page, self::PER_PAGE)
-            ->get();
+            ->get(['commits.id', 'commits.updated_at', 'users.username']);
+    }
+
+    /**
+     * Fetch all images for the page with one query rather than one per commit.
+     *
+     * @param array<int, string> $commitIds
+     * @return Collection<int, stdClass>
+     */
+    public function imagesFor(array $commitIds): Collection
+    {
+        return DB::table('commit_images')
+            ->whereIn('commit_id', $commitIds)
+            ->orderBy('commit_id')
+            ->orderBy('position')
+            ->get(['id', 'commit_id']);
     }
 
     /**
