@@ -145,9 +145,6 @@ Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
 
-// Search...
-Route::get('search', [SearchController::class, 'index'])->name('search.index');
-
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->middleware('throttle:search')
