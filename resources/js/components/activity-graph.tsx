@@ -31,7 +31,7 @@ const windows: Record<ActivityScale, string> = {
     year: 'in the last year',
 };
 
-function levelColor(level: number): string {
+export function levelColor(level: number): string {
     return level === 0
         ? 'var(--muted)'
         : `color-mix(in oklab, var(--lane) ${levelMix[level]}%, var(--card))`;
