@@ -143,6 +143,7 @@ export default function Index({
                                 {scheduled.body && (
                                     <FoldedCommitBody
                                         segments={scheduled.body_segments}
+                                        mentions={null}
                                         previewSegments={
                                             scheduled.preview_segments
                                         }

@@ -43,6 +43,7 @@ dataset('rate limits', [
             ['GET', route('user-search.index', ['q' => 'nuno'])],
             ['GET', route('mention-suggestion.index', ['q' => 'nuno'])],
             ['GET', route('user-preview.show', User::factory()->create())],
+            ['GET', route('mention.preview', User::factory()->create())],
         ],
         120,
         60,
@@ -103,7 +104,8 @@ it('shares a people lookup limit per guest IP without limiting other visitors', 
     $user = User::factory()->create(['username' => 'octocat']);
     $search = route('user-search.index', ['q' => 'octo']);
     $preview = route('user-preview.show', $user);
-    $requests = [$search, $preview];
+    $mentionPreview = route('mention.preview', $user);
+    $requests = [$search, $preview, $mentionPreview];
 
     $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
 
@@ -113,17 +115,20 @@ it('shares a people lookup limit per guest IP without limiting other visitors', 
 
     $this->getJson($search)->assertTooManyRequests();
     $this->getJson($preview)->assertTooManyRequests();
+    $this->getJson($mentionPreview)->assertTooManyRequests();
 
     $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.2']);
 
     $this->getJson($search)->assertOk();
     $this->getJson($preview)->assertOk();
+    $this->getJson($mentionPreview)->assertOk();
 
     $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
     $this->actingAs($user);
 
     $this->getJson($search)->assertOk();
     $this->getJson($preview)->assertOk();
+    $this->getJson($mentionPreview)->assertOk();
 });
 
 it('shares the JSON star budget across commits and replies without consuming other action budgets', function (): void {

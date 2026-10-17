@@ -16,6 +16,7 @@ const commit: Commit = {
     hot_score: 41484.833333,
     quoted_commit_id: null,
     body: 'Photo from the build',
+    mentions: {},
     body_segments: [],
     preview_segments: null,
     status: 'approved',

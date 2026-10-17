@@ -7,7 +7,8 @@ import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
-import { show } from '@/routes/user';
+import { show } from '@/routes/mention';
+import type { Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -213,6 +214,7 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
 function withMentions(
     text: string,
     offset: number,
+    mentions: Commit['mentions'],
     pasteisMode: boolean,
     isStatic: boolean,
 ): ReactNode[] {
@@ -220,17 +222,24 @@ function withMentions(
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
+        const username = match[1].toLowerCase();
+        const userId =
+            mentions && Object.hasOwn(mentions, username)
+                ? mentions[username]
+                : null;
+
         parts.push(
             ...withWordmarks(text.slice(position, match.index), pasteisMode),
-            isStatic ? (
+            isStatic || !userId ? (
                 match[0]
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ username: match[1] }}
+                    userId={userId}
                 >
                     <Link
-                        href={show({ username: match[1] })}
+                        href={show(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
                     >
@@ -250,10 +259,12 @@ function withMentions(
 
 export function LinkifiedText({
     text,
+    mentions,
     pasteisMode = false,
     isStatic = false,
 }: {
     text: string;
+    mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
 }) {
@@ -274,6 +285,7 @@ export function LinkifiedText({
             ...withMentions(
                 text.slice(position, match.index),
                 position,
+                mentions,
                 pasteisMode,
                 isStatic,
             ),
@@ -304,7 +316,13 @@ export function LinkifiedText({
     }
 
     parts.push(
-        ...withMentions(text.slice(position), position, pasteisMode, isStatic),
+        ...withMentions(
+            text.slice(position),
+            position,
+            mentions,
+            pasteisMode,
+            isStatic,
+        ),
     );
 
     return <>{parts}</>;

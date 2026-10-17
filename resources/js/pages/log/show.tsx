@@ -275,7 +275,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commit.body)}
+                                    mentions={commit.mentions}
+                                />
                             </p>
                         </div>
                         <Button size="sm" asChild>

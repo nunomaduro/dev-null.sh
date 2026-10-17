@@ -126,3 +126,49 @@ it('returns guests a summary of the user with only approved commits counted', fu
         ->assertJsonPath('isBlocking', false)
         ->assertJsonPath('isUnavailable', false);
 });
+
+it('previews the captured mention recipient after a rename and handle reuse', function (bool $authenticated): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'original']);
+    $user->followers()->attach($viewer);
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->pending()->create();
+    $user->update(['username' => 'renamed']);
+    User::factory()->create(['username' => 'original']);
+
+    if ($authenticated) {
+        $this->actingAs($viewer);
+    }
+
+    $this->getJson('/mentions/'.$user->id.'/preview')
+        ->assertOk()
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('user.username', 'renamed')
+        ->assertJsonPath('user.commits_count', 1)
+        ->assertJsonPath('isFollowing', $authenticated)
+        ->assertJsonMissingPath('user.email');
+})->with([true, false]);
+
+it('does not preview a replacement account for a deleted mention recipient', function (): void {
+    $user = User::factory()->create(['username' => 'original']);
+    $id = $user->id;
+    $user->delete();
+    User::factory()->create(['username' => 'original']);
+
+    $this->getJson('/mentions/'.$id.'/preview')->assertNotFound();
+    $this->getJson('/mentions/original/preview')->assertNotFound();
+});
+
+it('preserves block privacy for captured mention previews', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $user->blocking()->attach($viewer);
+    Commit::factory()->for($user)->create();
+
+    $this->actingAs($viewer)->getJson('/mentions/'.$user->id.'/preview')
+        ->assertOk()
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('isUnavailable', true)
+        ->assertJsonMissingPath('user.commits_count')
+        ->assertJsonMissingPath('user.followers_count');
+});

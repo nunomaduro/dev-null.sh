@@ -270,7 +270,11 @@ for (const pasteisMode of [false, true]) {
             const preview = previewFor({ body, isSubmittable: true });
             const markup = renderPage(
                 isStatic ? (
-                    <CommitBody segments={preview.segments} isStatic />
+                    <CommitBody
+                        segments={preview.segments}
+                        mentions={null}
+                        isStatic
+                    />
                 ) : (
                     <ComposerPreviewBody
                         preview={preview}
@@ -313,7 +317,13 @@ for (const pasteisMode of [false, true]) {
                 isSubmittable: true,
             });
             const markup = renderPage(
-                <CommitBody segments={preview.segments} isStatic={isStatic} />,
+                <CommitBody
+                    segments={preview.segments}
+                    mentions={{
+                        pastel: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+                    }}
+                    isStatic={isStatic}
+                />,
                 pasteisMode,
             );
 

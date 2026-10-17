@@ -683,7 +683,10 @@ it('keeps account deletion tombstones in threads while filtering silenced author
 it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
     $user = User::factory()->create(['username' => 'deletedauthor']);
     $root = Commit::factory()->create();
-    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Deleted body']);
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create([
+        'body' => 'Deleted body @deletedauthor',
+        'mentions' => ['deletedauthor' => $user->id],
+    ]);
     $reply = Commit::factory()->for($parent, 'parent')->create();
     resolve(DeleteUser::class)->handle($user);
 
@@ -698,6 +701,7 @@ it('keeps approved account deletion tombstones readable to guests without exposi
         ->assertInertia(fn ($page) => $page
             ->where('ancestors.1.id', $parent->id)
             ->missing('ancestors.1.body')
+            ->missing('ancestors.1.mentions')
             ->missing('ancestors.1.user'));
 
     $this->getJson(route('commit-reply.index', $parent))

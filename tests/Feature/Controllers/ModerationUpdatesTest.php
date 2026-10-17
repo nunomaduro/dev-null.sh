@@ -50,7 +50,7 @@ it('does not notify authors in a bulk approval and preserves reply notifications
 
 it('notifies mentioned users once a commit is approved', function (): void {
     $mentioned = User::factory()->create(['username' => 'taylorotwell']);
-    $commit = Commit::factory()->pending()->create(['body' => 'Pairing with @taylorotwell today']);
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Pairing with @taylorotwell today');
 
     expect($mentioned->notifications()->count())->toBe(0);
 

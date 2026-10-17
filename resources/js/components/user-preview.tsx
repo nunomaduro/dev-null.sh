@@ -5,14 +5,15 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
 import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { laneColor } from '@/lib/utils';
+import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
+import { show as userPreview } from '@/routes/user-preview';
 import type { Profile, User } from '@/types';
 
 type PreviewData = {
@@ -38,10 +39,8 @@ const viewportMargin = 8;
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
-async function fetchPreview(
-    user: Pick<User, 'username'>,
-): Promise<PreviewData> {
-    const response = await fetch(UserPreviewController.show(user).url, {
+async function fetchPreview(url: string): Promise<PreviewData> {
+    const response = await fetch(url, {
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -51,11 +50,11 @@ async function fetchPreview(
     if (!response.ok) {
         toastWhenThrottled(response);
 
-        throw new Error(`Unable to load @${user.username}`);
+        throw new Error(`Unable to load ${url}`);
     }
 
     const data = (await response.json()) as PreviewData;
-    cache.set(user.username, data);
+    cache.set(url, data);
 
     return data;
 }
@@ -89,17 +88,20 @@ function positionAround(anchor: HTMLElement): Position {
 
 export function UserPreview({
     user,
+    userId,
     children,
     className,
     anchor,
     onHoverChange,
 }: {
     user: User | Pick<User, 'username'>;
+    userId?: string;
     children: ReactNode;
     className?: string;
     anchor?: RefObject<HTMLElement | null>;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
+    const previewUrl = userId ? preview(userId).url : userPreview(user).url;
     const triggerRef = useRef<HTMLSpanElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -107,7 +109,7 @@ export function UserPreview({
     const [position, setPosition] = useState<Position | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [data, setData] = useState<PreviewData | null>(
-        () => cache.get(user.username) ?? null,
+        () => cache.get(previewUrl) ?? null,
     );
     const previewUser = data?.user ?? ('id' in user ? user : null);
 
@@ -137,8 +139,8 @@ export function UserPreview({
                     : positionFor(triggerRef.current),
             );
             setIsOpen(true);
-            setData(cache.get(user.username) ?? null);
-            fetchPreview(user).then(setData, () => undefined);
+            setData(cache.get(previewUrl) ?? null);
+            fetchPreview(previewUrl).then(setData, () => undefined);
         }, openDelay);
     };
 
@@ -238,7 +240,7 @@ export function UserPreview({
                     <div
                         ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${user.username}`}
+                        aria-label={`About @${previewUser.username}`}
                         onMouseEnter={() => {
                             onHoverChange?.(true);
                             keepOpen();
@@ -261,7 +263,7 @@ export function UserPreview({
                             user={previewUser}
                             data={data}
                             onChange={(next) => {
-                                cache.set(user.username, next);
+                                cache.set(previewUrl, next);
                                 setData(next);
                             }}
                             onMenuOpenChange={(isOpen) => {

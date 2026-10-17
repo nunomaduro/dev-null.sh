@@ -9,18 +9,11 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
-use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class CreateMentionNotifications
 {
-    public function __construct(private Mentions $mentions)
-    {
-        //
-    }
-
     /**
      * Notifies everyone mentioned in each commit, but only once the commit is approved, so nobody hears about a
      * mention they cannot see yet. Never for mentioning yourself, the parent's author of a reply or the quoted
@@ -35,11 +28,11 @@ final readonly class CreateMentionNotifications
             ->with(['parent', 'quotedCommit'])
             ->get();
 
-        $usernamesByCommit = $commits->mapWithKeys(fn (Commit $commit): array => [
-            $commit->id => $this->mentions->usernames($commit->body),
+        $recipientsByCommit = $commits->mapWithKeys(fn (Commit $commit): array => [
+            $commit->id => array_values($commit->mentions ?? []),
         ])->filter();
 
-        if ($usernamesByCommit->isEmpty()) {
+        if ($recipientsByCommit->isEmpty()) {
             return;
         }
 
@@ -47,10 +40,10 @@ final readonly class CreateMentionNotifications
         $silencedAuthors = fn (BelongsToMany $authors): BelongsToMany => $authors->whereKey($authorIds)->select('users.id');
 
         $users = User::query()
-            ->whereIn(DB::raw('LOWER(username)'), $usernamesByCommit->flatten()->unique()->values()->all())
+            ->whereKey($recipientsByCommit->flatten()->unique()->values()->all())
             ->with(['muting' => $silencedAuthors, 'blocking' => $silencedAuthors, 'blockers' => $silencedAuthors])
-            ->get(['id', 'username'])
-            ->keyBy(fn (User $user): string => Str::lower($user->username));
+            ->get(['id'])
+            ->keyBy('id');
 
         $notifications = [];
 
@@ -61,8 +54,8 @@ final readonly class CreateMentionNotifications
                 continue;
             }
 
-            foreach ($usernamesByCommit->get($commit->id, []) as $username) {
-                $user = $users->get($username);
+            foreach ($recipientsByCommit->get($commit->id, []) as $id) {
+                $user = $users->get($id);
 
                 if (! $user instanceof User || $user->id === $authorId || $user->id === $commit->parent?->user_id || $user->id === $commit->quotedCommit?->user_id || $this->isSilenced($user, $authorId)) {
                     continue;

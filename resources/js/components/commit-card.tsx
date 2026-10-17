@@ -293,6 +293,7 @@ export function CommitCard({
                             )}
                             <FoldedCommitBody
                                 segments={commit.body_segments}
+                                mentions={commit.mentions}
                                 previewSegments={
                                     isFolded && !isFocused
                                         ? commit.preview_segments

@@ -27,6 +27,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
@@ -110,6 +111,13 @@ Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): 
 });
 
 // User...
+Route::get('mentions/{user}', [MentionController::class, 'show'])
+    ->whereUuid('user')
+    ->name('mention.show');
+Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
+    ->middleware('throttle:people')
+    ->whereUuid('user')
+    ->name('mention.preview');
 Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
