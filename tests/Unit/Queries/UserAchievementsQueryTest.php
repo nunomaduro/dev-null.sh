@@ -25,8 +25,8 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['next_level_xp'])->toBe(50)
         ->and($result['level_progress'])->toBe(0)
         ->and($result['ranks'])->toHaveCount(6)
-        ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(11);
+        ->and($result['xp_breakdown']['pasteis_received']['xp'])->toBe(0)
+        ->and($result['badges'])->toHaveCount(12);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -254,4 +254,53 @@ it('reuses passed streaks without re-running streak calculation', function (): v
 
     expect($result['xp_breakdown']['streak']['count'])->toBe(42)
         ->and($result['xp_breakdown']['streak']['xp'])->toBe(42 * 15);
+});
+
+it('unlocks pastelaria badge when user has received 10 pastéis de nata on their commits', function (): void {
+    $user = User::factory()->create();
+
+    // 5 pastéis -> not unlocked yet
+    Commit::factory()->for($user)->create(['pasteis_count' => 5]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
+    $badge = collect($result['badges'])->firstWhere('id', Achievement::Pastelaria->value);
+
+    expect($badge)->not->toBeNull()
+        ->and($badge['unlocked'])->toBeFalse()
+        ->and($badge['progress'])->toBe(5)
+        ->and($badge['target'])->toBe(10)
+        ->and($result['xp_breakdown']['pasteis_received']['count'])->toBe(5)
+        ->and($result['xp_breakdown']['pasteis_received']['xp'])->toBe(25);
+
+    // Another commit with 5 pastéis -> total 10 -> unlocked!
+    Commit::factory()->for($user)->create(['pasteis_count' => 5]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
+    $badge = collect($result['badges'])->firstWhere('id', Achievement::Pastelaria->value);
+
+    expect($badge)->not->toBeNull()
+        ->and($badge['unlocked'])->toBeTrue()
+        ->and($badge['progress'])->toBe(10)
+        ->and($result['xp_breakdown']['pasteis_received']['count'])->toBe(10)
+        ->and($result['xp_breakdown']['pasteis_received']['xp'])->toBe(50);
+});
+
+it('awards 5 xp per pastel received on visible commits and excludes unapproved commits for viewers', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+
+    Commit::factory()->for($user)->create(['pasteis_count' => 3]);
+    Commit::factory()->for($user)->pending()->create(['pasteis_count' => 4]);
+
+    $query = resolve(UserAchievementsQuery::class);
+
+    // Author sees both approved and pending pastéis (3 + 4 = 7 pastéis * 5 = 35 XP)
+    $authorResult = $query->get($user, $user);
+    expect($authorResult['xp_breakdown']['pasteis_received']['count'])->toBe(7)
+        ->and($authorResult['xp_breakdown']['pasteis_received']['xp'])->toBe(35);
+
+    // Viewer only sees approved commit's pastéis (3 pastéis * 5 = 15 XP)
+    $viewerResult = $query->get($user, $viewer);
+    expect($viewerResult['xp_breakdown']['pasteis_received']['count'])->toBe(3)
+        ->and($viewerResult['xp_breakdown']['pasteis_received']['xp'])->toBe(15);
 });

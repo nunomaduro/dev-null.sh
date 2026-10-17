@@ -2,6 +2,7 @@ import {
     Award,
     Box,
     ChevronRight,
+    Croissant,
     FileCode,
     Flame,
     GitMerge,
@@ -35,6 +36,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    croissant: Croissant,
 };
 
 export function AchievementsShelf({
