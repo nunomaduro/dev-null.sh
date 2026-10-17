@@ -15,6 +15,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -387,9 +388,7 @@ export default function Index({
                                         key={
                                             filters.type +
                                             '-' +
-                                            notification.id +
-                                            '-' +
-                                            notification.event_count
+                                            notification.group_id
                                         }
                                         notification={notification}
                                         type={filters.type}
@@ -514,7 +513,7 @@ function NotificationGroupItem({
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
 
-    const load = async (next: string | null = null) => {
+    const load = async (next: string | null = null, prepend = false) => {
         setLoading(true);
         setFailed(false);
         const slow = window.setTimeout(() => setIsSlow(true), 300);
@@ -526,10 +525,21 @@ function NotificationGroupItem({
             if (!response.ok) throw new Error('Unable to load activity');
             const data =
                 (await response.json()) as CursorPaginated<Notification>;
-            setItems((previous) =>
-                next ? [...previous, ...data.data] : data.data,
-            );
-            setCursor(data.next_cursor);
+            if (prepend) {
+                setItems((previous) => {
+                    const seen = new Set(previous.map((item) => item.id));
+
+                    return [
+                        ...data.data.filter((item) => !seen.has(item.id)),
+                        ...previous,
+                    ];
+                });
+            } else {
+                setItems((previous) =>
+                    next ? [...previous, ...data.data] : data.data,
+                );
+                setCursor(data.next_cursor);
+            }
         } catch {
             setFailed(true);
         } finally {
@@ -538,6 +548,28 @@ function NotificationGroupItem({
             setLoading(false);
         }
     };
+
+    // A poll can change this group. An open list stays open: new events go on top, anything else reloads it.
+    const eventCount = useRef(notification.event_count);
+    const onEventCountChange = useEffectEvent(() => {
+        const grew = notification.event_count > eventCount.current;
+        eventCount.current = notification.event_count;
+
+        if (open && items.length > 0) {
+            void load(null, grew);
+
+            return;
+        }
+
+        setItems([]);
+        setCursor(null);
+    });
+
+    useEffect(() => {
+        if (eventCount.current !== notification.event_count) {
+            onEventCountChange();
+        }
+    }, [notification.event_count]);
 
     return (
         <article
