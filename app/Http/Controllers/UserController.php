@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserStarsCountQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -26,7 +27,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, UserStarsCountQuery $stars, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -42,15 +43,21 @@ final readonly class UserController
             return $streakData ??= $streaks->get($user, $currentUser);
         };
 
+        $starsData = null;
+        $getStars = function () use (&$starsData, $stars, $user, $currentUser): int {
+            return $starsData ??= $stars->get($user, $currentUser);
+        };
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
             'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
+            'starsCount' => $getStars,
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
-            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
+            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks(), $getStars()),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)

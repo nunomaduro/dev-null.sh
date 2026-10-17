@@ -8,11 +8,10 @@ use App\Enums\Achievement;
 use App\Enums\UnixRank;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 final readonly class UserAchievementsQuery
 {
-    public function __construct(private UserStreakQuery $streaks)
+    public function __construct(private UserStreakQuery $streaks, private UserStarsCountQuery $stars)
     {
         //
     }
@@ -50,7 +49,7 @@ final readonly class UserAchievementsQuery
      *     }>
      * }
      */
-    public function get(User $user, ?User $viewer, ?array $streaks = null): array
+    public function get(User $user, ?User $viewer, ?array $streaks = null, ?int $starsReceived = null): array
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
@@ -70,11 +69,7 @@ final readonly class UserAchievementsQuery
             ->count();
 
         // Stars received on visible commits, excluding self-stars
-        $visibleCommitIds = (clone $visibleCommitsQuery)->select('id');
-        $starsReceivedCount = (int) DB::table('stars')
-            ->whereIn('commit_id', $visibleCommitIds)
-            ->where('user_id', '!=', $user->id)
-            ->count();
+        $starsReceivedCount = $starsReceived ?? $this->stars->get($user, $viewer);
 
         // Stars given to visible commits by other developers, excluding self-stars
         $starsGivenCount = (int) $user->starredCommits()

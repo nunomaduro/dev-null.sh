@@ -37,6 +37,7 @@ it('renders a user profile', function (): void {
             ->missing('user.github_id')
             ->where('isFollowing', true)
             ->where('followsYou', false)
+            ->where('starsCount', 0)
             ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
@@ -76,6 +77,7 @@ it('does not count the user relations or activity when reloading only commits', 
                 ->missing('followsYou')
                 ->missing('tab')
                 ->missing('activity')
+                ->missing('starsCount')
                 ->missing('achievements'));
         });
 
@@ -145,9 +147,29 @@ it('renders the user commit streaks alongside starred commits', function (): voi
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('streaks', ['longest' => 2, 'current' => 1])
+            ->where('starsCount', 1)
             ->where('commits.data.0.id', $commit->id)
             ->where('commits.data.0.stars_count', 1)
             ->where('commits.data.0.starred', true));
+});
+
+it('counts the stars a user received once, for the stats and the achievements', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    User::factory()->count(3)->create()->each(fn (User $stargazer) => $stargazer->starredCommits()->attach(Commit::factory()->for($user)->create()));
+
+    DB::enableQueryLog();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('starsCount', 3)
+            ->where('achievements.xp_breakdown.stars_received.count', 3));
+
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query): bool => str_contains($query, 'inner join "stars" on "stars"."commit_id" = "commits"."id"')))
+        ->toHaveCount(1);
 });
 
 it('does not compute the streaks when reloading only commits', function (string $tab): void {
@@ -270,8 +292,10 @@ it('shows guests the profile with its approved commits and a link preview', func
         'bio' => 'I am the Octocat.',
     ]);
 
-    Commit::factory()->for($user)->create(['body' => 'A commit everyone may read']);
-    Commit::factory()->for($user)->pending()->create(['body' => 'A pending commit only its author may read']);
+    $approved = Commit::factory()->for($user)->create(['body' => 'A commit everyone may read']);
+    $pending = Commit::factory()->for($user)->pending()->create(['body' => 'A pending commit only its author may read']);
+
+    User::factory()->create()->starredCommits()->attach([$approved->id, $pending->id]);
 
     $response = $this->get('/@octocat');
 
@@ -281,6 +305,7 @@ it('shows guests the profile with its approved commits and a link preview', func
             ->where('user.commits_count', 1)
             ->where('isFollowing', false)
             ->where('isMuting', false)
+            ->where('starsCount', 1)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'A commit everyone may read')
             ->where('commits.data.0.is_saved', false)

@@ -17,9 +17,24 @@ it('may star a commit', function (): void {
         ->postJson(route('commit-star.store', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 2]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 2, 'author' => ['id' => $commit->user_id, 'stars_received' => 2]]);
 
     expect($user->hasStarred($commit))->toBeTrue();
+});
+
+it('returns the stars the author received across all their commits', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    $reply = Commit::factory()->for($author)->for(Commit::factory(), 'parent')->create();
+    $hidden = Commit::factory()->for($author)->pending()->create();
+
+    User::factory()->create()->starredCommits()->attach([$reply->id, $hidden->id]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-star.store', $commit))
+        ->assertOk()
+        ->assertJsonPath('author.id', $author->id)
+        ->assertJsonPath('author.stars_received', 2);
 });
 
 it('starring is idempotent', function (): void {
@@ -29,7 +44,7 @@ it('starring is idempotent', function (): void {
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertOk();
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'author' => ['id' => $commit->user_id, 'stars_received' => 1]]);
 
     expect($user->starredCommits()->count())->toBeOne();
 });
@@ -80,7 +95,7 @@ it('may unstar a commit', function (): void {
         ->deleteJson(route('commit-star.destroy', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => false, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => false, 'stars_count' => 1, 'author' => ['id' => $commit->user_id, 'stars_received' => 1]]);
 
     expect($user->hasStarred($commit))->toBeFalse();
 });

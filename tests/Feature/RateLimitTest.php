@@ -132,21 +132,22 @@ it('shares the JSON star budget across commits and replies without consuming oth
     $reply = Commit::factory()->for($commit, 'parent')->create();
     $ownCommit = Commit::factory()->for($user)->create();
     $requests = [
-        ['POST', route('commit-star.store', $commit)],
-        ['POST', route('commit-star.store', $reply)],
-        ['DELETE', route('commit-star.destroy', $commit)],
-        ['DELETE', route('commit-star.destroy', $reply)],
+        ['POST', route('commit-star.store', $commit), $commit],
+        ['POST', route('commit-star.store', $reply), $reply],
+        ['DELETE', route('commit-star.destroy', $commit), $commit],
+        ['DELETE', route('commit-star.destroy', $reply), $reply],
     ];
 
     $this->actingAs($user);
 
     foreach (range(0, 59) as $attempt) {
-        [$method, $uri] = $requests[$attempt % count($requests)];
+        [$method, $uri, $starredCommit] = $requests[$attempt % count($requests)];
         $starred = $method === 'POST';
 
         $this->json($method, $uri)->assertOk()->assertExactJson([
             'starred' => $starred,
             'stars_count' => $starred ? 1 : 0,
+            'author' => ['id' => $starredCommit->user_id, 'stars_received' => $starred ? 1 : 0],
         ]);
     }
 
@@ -165,5 +166,5 @@ it('shares the JSON star budget across commits and replies without consuming oth
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-star.store', $reply))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'author' => ['id' => $reply->user_id, 'stars_received' => 1]]);
 });

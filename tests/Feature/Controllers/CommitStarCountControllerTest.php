@@ -129,7 +129,7 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
 
     $this->actingAs($author)->postJson(route('commit-star.store', $reply))->assertForbidden();
     $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
-        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'author' => ['id' => $author->id, 'stars_received' => 1]]);
     $this->getJson($url)->assertExactJson(['commits' => [
         ['id' => $reply->id, 'starred' => true, 'stars_count' => 1],
     ]]);
@@ -138,7 +138,7 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
     ]]);
 
     $this->actingAs($viewer)->deleteJson(route('commit-star.destroy', $reply))
-        ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0]);
+        ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0, 'author' => ['id' => $author->id, 'stars_received' => 0]]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
         ['id' => $reply->id, 'starred' => false, 'stars_count' => 0],
     ]]);

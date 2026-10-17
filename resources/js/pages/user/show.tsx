@@ -27,6 +27,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import { formatCompactCount, formatFullCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -47,6 +48,7 @@ export default function Show({
     isFollowing,
     followsYou,
     isMuting,
+    starsCount,
     activity,
     streaks,
     achievements,
@@ -59,6 +61,7 @@ export default function Show({
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
+    starsCount: number;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -77,6 +80,16 @@ export default function Show({
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
     );
+    const [starsReceived] = useSharedState(
+        commitStateKey('stars_received', user.id),
+        starsCount,
+    );
+
+    useEffect(() => {
+        refreshSharedState(
+            new Map([[commitStateKey('stars_received', user.id), starsCount]]),
+        );
+    }, [user.id, starsCount]);
 
     useEffect(() => {
         if (pasteisReceived !== null) {
@@ -248,7 +261,7 @@ export default function Show({
                     </li>
                 </ul>
 
-                <dl className="mt-4 flex gap-5 text-sm">
+                <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                     {[
                         {
                             count: user.commits_count,
@@ -273,26 +286,43 @@ export default function Show({
                             ),
                             href: UserFollowersController.index(user),
                         },
+                        {
+                            count: formatCompactCount(starsReceived),
+                            title: formatFullCount(starsReceived),
+                            label: pluralize(starsReceived, 'star', 'stars'),
+                            href: null,
+                        },
                     ].map((stat) => (
                         <div
                             key={stat.label}
                             className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                >
-                                    {stat.label}
-                                </Link>
+                                {stat.href ? (
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.label}
+                                    </Link>
+                                ) : (
+                                    stat.label
+                                )}
                             </dt>
-                            <dd className="font-mono font-medium">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                >
-                                    {stat.count}
-                                </Link>
+                            <dd
+                                className="font-mono font-medium tabular-nums"
+                                title={stat.title}
+                            >
+                                {stat.href ? (
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.count}
+                                    </Link>
+                                ) : (
+                                    stat.count
+                                )}
                             </dd>
                         </div>
                     ))}
