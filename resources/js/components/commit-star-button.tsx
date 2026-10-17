@@ -4,6 +4,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
@@ -84,7 +85,12 @@ export function CommitStarButton({
 
     if (isOwn) {
         return (
-            <StarCount ref={setElement} count={count} className={className} />
+            <StarCount
+                ref={setElement}
+                commit={commit}
+                count={count}
+                className={className}
+            />
         );
     }
 
@@ -172,39 +178,45 @@ export function CommitStarButton({
 }
 
 /**
- * Authors can't star their own commits, so they only see how many stars others gave.
+ * Authors can't star their own commits, so they see how many stars others gave, and who gave them.
+ *
+ * It stays one button whatever the count, as star polling keeps watching the element it was given.
  */
 function StarCount({
     ref,
+    commit,
     count,
     className,
 }: {
-    ref?: Ref<HTMLSpanElement>;
+    ref?: Ref<HTMLButtonElement>;
+    commit: Commit;
     count: number;
     className?: string;
 }) {
     const label =
         count === 0
             ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}`;
+            : `${count} ${count === 1 ? 'star' : 'stars'}, show who starred`;
 
     return (
-        <span
-            ref={ref}
-            role="img"
-            aria-label={label}
-            title={label}
-            className={cn(
-                'inline-flex cursor-default items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground',
-                count === 0 && 'text-muted-foreground/50',
-                className,
-            )}
-            data-test="star-count-readonly"
-        >
-            <Star aria-hidden className="size-4" />
-            <span data-test="star-count" className="min-w-[1ch] text-left">
-                {count > 0 ? count : ''}
-            </span>
-        </span>
+        <CommitStargazersDialog commit={commit} count={count}>
+            <button
+                ref={ref}
+                type="button"
+                disabled={count === 0}
+                aria-label={label}
+                title={label}
+                className={cn(
+                    'inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:text-muted-foreground/50 disabled:hover:bg-transparent',
+                    className,
+                )}
+                data-test="own-star-count"
+            >
+                <Star aria-hidden className="size-4" />
+                <span data-test="star-count" className="min-w-[1ch] text-left">
+                    {count > 0 ? count : ''}
+                </span>
+            </button>
+        </CommitStargazersDialog>
     );
 }
