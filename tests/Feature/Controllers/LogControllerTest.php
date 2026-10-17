@@ -39,6 +39,21 @@ it('renders own commits and commits of followed users newest first', function ()
             ->where('commits.data.1.body', 'Mine'));
 });
 
+it('shares the current user for the composer avatar preview and profile link', function (): void {
+    $user = User::factory()->create(['username' => 'shipper', 'name' => 'Shipper']);
+
+    $this->actingAs($user)
+        ->get('/log/following')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('auth.user.id', $user->id)
+            ->where('auth.user.username', 'shipper')
+            ->where('auth.user.name', 'Shipper')
+            ->has('auth.user.avatar_url')
+            ->has('auth.user.lane'));
+});
+
 it('renders each author with their effective lane', function (): void {
     $user = User::factory()->create();
     $chosen = User::factory()->create(['preferred_lane' => 5]);

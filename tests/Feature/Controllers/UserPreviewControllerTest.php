@@ -45,6 +45,19 @@ it('does not count deleted commits in the user preview', function (): void {
         ->assertJsonPath('user.commits_count', 1);
 });
 
+it('returns a preview for the current user', function (): void {
+    $user = User::factory()->create(['username' => 'shipper', 'name' => 'Shipper']);
+
+    $response = $this->actingAs($user)
+        ->getJson('/@shipper/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('user.name', 'Shipper')
+        ->assertJsonPath('isFollowing', false)
+        ->assertJsonPath('followsYou', false);
+});
+
 it('loads counts without joining users', function (): void {
     $viewer = User::factory()->create();
     $user = User::factory()->create(['username' => 'octocat']);
