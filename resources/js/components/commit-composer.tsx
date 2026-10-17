@@ -15,6 +15,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -38,6 +39,7 @@ import {
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
+import { insertAtSelection } from '@/lib/text-selection';
 import {
     characterCount,
     cn,
@@ -114,6 +116,29 @@ function CommitComposerBody({
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
+
+    const insertEmoji = (
+        emoji: string,
+        textarea: HTMLTextAreaElement | null,
+    ) => {
+        const element = textareaRef.current;
+        const inserted = insertAtSelection(
+            body,
+            textarea !== null && textarea === element ? element : null,
+            emoji,
+            maxBodyLength,
+        );
+
+        if (inserted === null) {
+            return;
+        }
+
+        updateBody(inserted.value);
+        requestAnimationFrame(() => {
+            element?.focus();
+            element?.setSelectionRange(inserted.caret, inserted.caret);
+        });
+    };
 
     return (
         <div className="flex">
@@ -287,6 +312,10 @@ function CommitComposerBody({
                                 disabled={processing || poll !== null}
                                 onPick={attachments.attach}
                                 className="-ml-2"
+                            />
+                            <EmojiPickerButton
+                                disabled={processing}
+                                onPick={insertEmoji}
                             />
                             <Button
                                 type="button"
