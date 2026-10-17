@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "bin/cursor-track-file-edit.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": "bin/cursor-run-tests-on-stop.sh",
+        "timeout": 600,
+        "loop_limit": 3
+      }
+    ]
+  }
+}

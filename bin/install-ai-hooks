@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Copy AI hook configs into the canonical locations each tool expects.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+install -d "$ROOT/.cursor" "$ROOT/.claude"
+cp "$ROOT/ai-hooks/cursor.hooks.json" "$ROOT/.cursor/hooks.json"
+cp "$ROOT/ai-hooks/claude.settings.hooks.json" "$ROOT/.claude/settings.json"
+
+chmod +x \
+  "$ROOT/bin/run-tests-if-relevant" \
+  "$ROOT/bin/cursor-track-file-edit.sh" \
+  "$ROOT/bin/cursor-run-tests-on-stop.sh" \
+  "$ROOT/.claude/hooks/"*.sh \
+  "$ROOT/.codex/hooks/"*.sh
+
+echo "Installed .cursor/hooks.json and .claude/settings.json"
+echo "Codex uses committed .codex/hooks.json"

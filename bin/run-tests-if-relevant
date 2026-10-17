@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+# Shared AI-agent hook helper: track relevant edits, then run `composer test` once per turn.
+#
+# Usage:
+#   bin/run-tests-if-relevant track [--format cursor|claude|codex]
+#   bin/run-tests-if-relevant stop  [--format cursor|claude|codex]
+#
+# Reads hook JSON from stdin. Fail-open on unexpected errors (exit 0 + empty JSON).
+
+set -u
+
+FORMAT="cursor"
+ACTION=""
+
+usage() {
+  echo "Usage: $0 track|stop [--format cursor|claude|codex]" >&2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    track|stop)
+      ACTION="$1"
+      shift
+      ;;
+    --format)
+      FORMAT="${2:-}"
+      shift 2
+      ;;
+    --format=*)
+      FORMAT="${1#--format=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 0
+      ;;
+  esac
+done
+
+if [[ -z "$ACTION" ]]; then
+  usage
+  exit 0
+fi
+
+case "$FORMAT" in
+  cursor|claude|codex) ;;
+  *) FORMAT="cursor" ;;
+esac
+
+emit_empty() {
+  printf '%s\n' '{}'
+}
+
+trap 'emit_empty; exit 0' ERR
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+GIT_DIR="$(git rev-parse --git-dir 2>/dev/null || echo "$REPO_ROOT/.git")"
+STATE_DIR="$GIT_DIR/ai-hooks"
+STATE_FILE="$STATE_DIR/changed-files"
+mkdir -p "$STATE_DIR"
+
+normalize_path() {
+  local raw="$1"
+  raw="${raw#"$REPO_ROOT"/}"
+  raw="${raw#./}"
+  printf '%s\n' "$raw"
+}
+
+path_is_relevant() {
+  local path
+  path="$(normalize_path "$1")"
+
+  [[ -z "$path" || "$path" == "null" ]] && return 1
+
+  case "$path" in
+    vendor/*|node_modules/*|storage/*|bootstrap/cache/*|public/build/*|public/hot|.git/*)
+      return 1
+      ;;
+    .env|.env.*|*.env)
+      return 1
+      ;;
+  esac
+
+  case "$path" in
+    app/*|bootstrap/*.php|config/*|database/*|routes/*|tests/*)
+      return 0
+      ;;
+    resources/js/*|resources/css/*|resources/views/*|resources/ts/*)
+      return 0
+      ;;
+    composer.json|composer.lock|package.json|package-lock.json|bun.lock|bun.lockb|yarn.lock|pnpm-lock.yaml)
+      return 0
+      ;;
+    pest.php|phpunit.xml|phpunit.xml.dist|phpstan.neon|phpstan.neon.dist|rector.php|pint.json)
+      return 0
+      ;;
+    vite.config.js|vite.config.ts|vite.config.mjs|vitest.config.*|tsconfig.json|tsconfig.*.json)
+      return 0
+      ;;
+    eslint.config.*|oxlint.config.*|.oxlintrc*|oxfmt.config.*)
+      return 0
+      ;;
+  esac
+
+  case "$path" in
+    *.php)
+      case "$path" in
+        vendor/*|storage/*|node_modules/*) return 1 ;;
+        *) return 0 ;;
+      esac
+      ;;
+    *.ts|*.tsx|*.js|*.jsx|*.vue|*.mjs|*.cjs)
+      case "$path" in
+        resources/*|vite.config.*|*.config.js|*.config.ts|*.config.mjs)
+          return 0
+          ;;
+      esac
+      ;;
+  esac
+
+  return 1
+}
+
+track_path() {
+  local path
+  path="$(normalize_path "$1")"
+  path_is_relevant "$path" || return 0
+  touch "$STATE_FILE"
+  if ! grep -Fxq -- "$path" "$STATE_FILE" 2>/dev/null; then
+    printf '%s\n' "$path" >>"$STATE_FILE"
+  fi
+}
+
+extract_paths_from_json() {
+  local json="$1"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  jq -r '
+    [
+      .file_path?,
+      .path?,
+      .tool_input.file_path?,
+      .tool_input.path?,
+      (.tool_input.edits // [] | .[]? | .file_path? // .path?),
+      (.edits // [] | .[]? | .file_path? // .path?),
+      (.tool_input.files // [] | .[]? | if type == "string" then . else (.path? // .file_path?) end),
+      (.tool_response.files // [] | .[]? | if type == "string" then . else (.path? // .file_path?) end)
+    ]
+    | map(select(type == "string" and . != "" and . != "null"))
+    | .[]
+  ' <<<"$json" 2>/dev/null || true
+}
+
+has_relevant_tracked_files() {
+  [[ -f "$STATE_FILE" ]] || return 1
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    [[ -z "$path" ]] && continue
+    if path_is_relevant "$path"; then
+      return 0
+    fi
+  done <"$STATE_FILE"
+  return 1
+}
+
+clear_state() {
+  rm -f "$STATE_FILE"
+}
+
+truncate_output() {
+  local text="$1"
+  local max="${2:-6000}"
+  local length=${#text}
+  if (( length <= max )); then
+    printf '%s' "$text"
+    return
+  fi
+  printf '%s\n\n…(truncated, showing last %s chars)…\n%s' "${text:0:400}" "$max" "${text: -$((max - 500))}"
+}
+
+pest_failure_summary() {
+  local output="$1"
+
+  command -v jq >/dev/null 2>&1 || return 0
+
+  grep -E '^\{"tool":"pest"' <<<"$output" | jq -rs '
+    map(select(.result == "failed")) | .[0] // empty
+    | "Pest: \(.failed) failed, \(.passed) passed of \(.tests) tests\n"
+      + ([.failures[:20][] | "\n✗ \(.test)\n  \(.file):\(.line)\n  \(.message[:600])"] | join("\n"))
+      + (if (.failures | length) > 20 then "\n\n…and \((.failures | length) - 20) more failures" else "" end)
+  ' 2>/dev/null || true
+}
+
+emit_stop_success() {
+  emit_empty
+}
+
+emit_stop_failure() {
+  local summary="$1"
+  local message
+  message="$(printf 'composer test failed after relevant source/config/test changes.\n\nFix the failures before finishing.\n\n%s' "$summary")"
+
+  case "$FORMAT" in
+    cursor)
+      jq -n --arg msg "$message" '{followup_message: $msg}'
+      ;;
+    claude)
+      jq -n --arg reason "$message" '{
+        decision: "block",
+        reason: $reason,
+        hookSpecificOutput: {
+          hookEventName: "Stop",
+          additionalContext: $reason
+        }
+      }'
+      ;;
+    codex)
+      jq -n --arg reason "$message" '{
+        decision: "block",
+        reason: $reason,
+        systemMessage: "composer test failed — see hook reason for details."
+      }'
+      ;;
+  esac
+}
+
+should_skip_stop_loop() {
+  local json="$1"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local stop_active loop_count
+  stop_active="$(jq -r '.stop_hook_active // false' <<<"$json" 2>/dev/null || echo false)"
+  loop_count="$(jq -r '.loop_count // 0' <<<"$json" 2>/dev/null || echo 0)"
+
+  if [[ "$stop_active" == "true" ]] && ! has_relevant_tracked_files; then
+    return 0
+  fi
+
+  if [[ "$FORMAT" == "cursor" ]] && [[ "$loop_count" =~ ^[0-9]+$ ]] && (( loop_count >= 3 )); then
+    if ! has_relevant_tracked_files; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+do_track() {
+  local json
+  json="$(cat || true)"
+
+  if [[ -z "$json" ]]; then
+    emit_empty
+    return
+  fi
+
+  local path
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    [[ -z "$path" ]] && continue
+    track_path "$path"
+  done < <(extract_paths_from_json "$json")
+
+  emit_empty
+}
+
+do_stop() {
+  local json
+  json="$(cat || true)"
+
+  if should_skip_stop_loop "$json"; then
+    clear_state
+    emit_empty
+    return
+  fi
+
+  if ! has_relevant_tracked_files; then
+    clear_state
+    emit_empty
+    return
+  fi
+
+  clear_state
+
+  local output status
+  set +e
+  output="$(composer install --no-interaction 2>&1 && { [[ -f .env ]] || { cp .env.example .env && php artisan key:generate --no-interaction; }; } 2>&1 && bun install 2>&1 && php artisan wayfinder:generate --with-form --no-interaction 2>&1 && bun run build 2>&1 && composer test 2>&1)"
+  status=$?
+  set -e
+
+  if [[ $status -eq 0 ]]; then
+    emit_stop_success
+    return
+  fi
+
+  local summary
+  summary="$(truncate_output "$output")"
+  local pest_summary
+  pest_summary="$(pest_failure_summary "$output")"
+  if [[ -n "$pest_summary" ]]; then
+    summary="$(printf '%s\n\n--- Full output ---\n%s' "$pest_summary" "$summary")"
+  fi
+  emit_stop_failure "$summary"
+}
+
+case "$ACTION" in
+  track) do_track ;;
+  stop) do_stop ;;
+esac
+
+exit 0

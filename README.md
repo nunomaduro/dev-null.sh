@@ -58,6 +58,12 @@ Twitch requires the embedding site's host, which is taken from `APP_URL`. To add
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.
 
+### AI agent hooks
+
+Claude Code, Cursor, and Codex run `composer test` once when an agent turn ends after it edited source, config, or test files. If tests fail, the agent is told to fix them.
+
+Run `bin/install-ai-hooks` once after cloning. It copies `ai-hooks/*.json` to `.claude/settings.json` and `.cursor/hooks.json`, and makes the hook scripts executable. Codex uses the committed `.codex/hooks.json`. After changing a template in `ai-hooks/`, rerun the installer and commit the generated files.
+
 ## Public API
 
 Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved commits are returned; pending, rejected, and deleted commits are a 404 or left out. Rate limited to 60 requests a minute per IP, and open to cross-origin `GET` requests.
