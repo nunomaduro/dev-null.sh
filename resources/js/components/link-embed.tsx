@@ -21,21 +21,21 @@ function frameStyle(embed: Embed): CSSProperties {
 }
 
 function Thumbnail({
-    preview,
+    src,
     className,
 }: {
-    preview: LinkPreview;
+    src: string | null;
     className?: string;
 }) {
     const [isBroken, setIsBroken] = useState(false);
 
-    if (!preview.image_url || isBroken) {
+    if (!src || isBroken) {
         return <span className={cn('bg-muted', className)} />;
     }
 
     return (
         <img
-            src={preview.image_url}
+            src={src}
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
@@ -71,6 +71,7 @@ export function LinkEmbed({
     const Icon = icons[embed.kind];
     const label = `Play ${preview.title ?? preview.url} from ${embed.provider}`;
     const isVideo = embed.aspect_ratio !== null;
+    const poster = preview.image_url ?? embed.poster ?? null;
 
     const frame = (
         <iframe
@@ -113,7 +114,7 @@ export function LinkEmbed({
                                 data-test="link-embed-play"
                             >
                                 <Thumbnail
-                                    preview={preview}
+                                    src={poster}
                                     className="absolute inset-0 size-full"
                                 />
                                 <span className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
@@ -143,7 +144,7 @@ export function LinkEmbed({
                     data-test="link-embed-play"
                 >
                     <span className="relative my-2 ml-2 size-20 shrink-0 overflow-hidden rounded-md">
-                        <Thumbnail preview={preview} className="size-full" />
+                        <Thumbnail src={poster} className="size-full" />
                         <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white transition-colors group-hover:bg-black/40">
                             <Icon className="size-7 fill-current" />
                         </span>

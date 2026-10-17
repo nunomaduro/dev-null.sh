@@ -10,6 +10,7 @@ export type Embed = {
     src: string;
     aspect_ratio: string | null;
     height: number | null;
+    poster?: string | null;
 };
 
 export type LinkPreview = {

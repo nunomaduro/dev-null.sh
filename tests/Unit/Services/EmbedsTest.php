@@ -16,6 +16,7 @@ it('embeds links to a provider', function (): void {
         'src' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
         'aspect_ratio' => '16 / 9',
         'height' => null,
+        'poster' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
     ]);
 });
 
@@ -58,6 +59,7 @@ it('asks the providers in order', function (): void {
         'src' => 'https://embed.example.com/watch',
         'aspect_ratio' => null,
         'height' => 300,
+        'poster' => null,
     ]);
 });
 

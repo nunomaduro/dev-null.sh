@@ -25,6 +25,15 @@ it('embeds videos', function (string $url, string $src, string $aspectRatio): vo
     'playlist' => ['https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'https://www.youtube-nocookie.com/embed/videoseries?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG&autoplay=1', '16 / 9'],
 ]);
 
+it('shows the video thumbnail as the poster', function (string $url, ?string $poster): void {
+    expect(resolve(YouTube::class)->embed(Url::parse($url))?->poster)->toBe($poster);
+})->with([
+    'watch' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43', 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg'],
+    'short link' => ['https://youtu.be/dQw4w9WgXcQ', 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg'],
+    'shorts' => ['https://www.youtube.com/shorts/aqz-KE-bpKQ', 'https://i.ytimg.com/vi/aqz-KE-bpKQ/hqdefault.jpg'],
+    'playlist, which has no one video' => ['https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', null],
+]);
+
 it('ignores a timestamp it can not read', function (): void {
     expect(resolve(YouTube::class)->embed(Url::parse('https://youtu.be/dQw4w9WgXcQ?t=soon'))?->src)
         ->toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1');

@@ -114,6 +114,7 @@ it('includes the embed of the link preview', function (): void {
             'src' => 'https://open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT',
             'aspect_ratio' => null,
             'height' => 152,
+            'poster' => null,
         ]);
 });
 

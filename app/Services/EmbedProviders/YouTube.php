@@ -56,7 +56,15 @@ final readonly class YouTube implements EmbedProvider
     {
         $start = $this->seconds($query['t'] ?? $query['start'] ?? null);
 
-        return Embed::video('YouTube', "{$this->base()}/{$id}", ['autoplay' => 1, ...($start > 0 ? ['start' => $start] : [])], $aspectRatio);
+        return Embed::video('YouTube', "{$this->base()}/{$id}", ['autoplay' => 1, ...($start > 0 ? ['start' => $start] : [])], $aspectRatio, $this->poster($id));
+    }
+
+    /**
+     * YouTube often answers a server's request for the page without its og:image, but every video has this thumbnail.
+     */
+    private function poster(string $id): string
+    {
+        return "https://i.ytimg.com/vi/{$id}/hqdefault.jpg";
     }
 
     private function base(): string

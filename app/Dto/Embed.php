@@ -18,16 +18,19 @@ final readonly class Embed implements Arrayable
         public string $src,
         public ?string $aspectRatio,
         public ?int $height,
+        public ?string $poster = null,
     ) {
         //
     }
 
     /**
+     * The poster stands in for the player until it is played, for when the link's own preview has no image.
+     *
      * @param  array<string, string|int>  $query
      */
-    public static function video(string $provider, string $src, array $query = [], string $aspectRatio = '16 / 9'): self
+    public static function video(string $provider, string $src, array $query = [], string $aspectRatio = '16 / 9', ?string $poster = null): self
     {
-        return new self($provider, EmbedKind::Video, self::withQuery($src, $query), $aspectRatio, null);
+        return new self($provider, EmbedKind::Video, self::withQuery($src, $query), $aspectRatio, null, $poster);
     }
 
     /**
@@ -39,7 +42,7 @@ final readonly class Embed implements Arrayable
     }
 
     /**
-     * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null}
+     * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null, poster: string|null}
      */
     public function toArray(): array
     {
@@ -49,6 +52,7 @@ final readonly class Embed implements Arrayable
             'src' => $this->src,
             'aspect_ratio' => $this->aspectRatio,
             'height' => $this->height,
+            'poster' => $this->poster,
         ];
     }
 
