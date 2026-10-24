@@ -51,7 +51,7 @@ it('sends a guest through the github sign-in, then back to approve the app', fun
     Queue::fake();
     fakeGitHubSponsorsListing();
 
-    $this->get(route('mobile-authorization.show', $this->parameters))->assertRedirectToRoute('home');
+    $this->get(route('mobile-authorization.show', $this->parameters))->assertRedirectToRoute('login');
 
     $user = User::factory()->create(['github_id' => '583231']);
 

@@ -43,7 +43,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page']);
 
-        $middleware->redirectGuestsTo(fn (): string => route('home'));
+        // Approving the app is the one page a guest should leave for GitHub, then return to. Every other page
+        // they open while signed out stays the log. Locally, sign-in is the modal on that log.
+        $middleware->redirectGuestsTo(fn (Request $request): string => $request->routeIs('mobile-authorization.show') && ! app()->isLocal()
+            ? route('login')
+            : route('home'));
         $middleware->redirectUsersTo(fn (Request $request): string => route('log.show', $request->user()->log ?? Log::Following));
 
         // Rate limits apply to the user authenticated by their SSH signature...

@@ -463,7 +463,7 @@ Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Ap
 
 ### Signed API and devices
 
-An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web: sign in with GitHub if needed, check the key's fingerprint, and approve it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
+An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web. A guest goes straight to GitHub and returns to that page; someone already signed in checks the key's fingerprint and approves it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
