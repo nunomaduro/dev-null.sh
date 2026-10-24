@@ -7,9 +7,11 @@ namespace App\Rules;
 use App\Models\Conversation;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
- * A reply goes to a message in the same conversation, within the history the sender can see, and never to an event.
+ * A reply goes to a message in the same conversation, within the history the sender can see or pinned for everyone in
+ * it, and never to an event.
  */
 final readonly class RepliableMessage implements ValidationRule
 {
@@ -24,7 +26,7 @@ final readonly class RepliableMessage implements ValidationRule
             && is_numeric($value)
             && $this->conversation->messages()
                 ->whereKey((int) $value)
-                ->where('id', '>', $this->visibleFrom)
+                ->where(fn (Builder $query): Builder => $query->where('id', '>', $this->visibleFrom)->orWhereNotNull('pinned_at'))
                 ->whereNull('event')
                 ->exists();
 

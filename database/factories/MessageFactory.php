@@ -27,4 +27,11 @@ final class MessageFactory extends Factory
             'body' => fake()->sentence(),
         ];
     }
+
+    public function pinned(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'pinned_at' => now(),
+        ]);
+    }
 }

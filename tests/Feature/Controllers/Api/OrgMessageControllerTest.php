@@ -65,6 +65,24 @@ it('starts where the member history starts', function (): void {
         ->assertJsonPath('data.role', 'contributor');
 });
 
+it('hands over the pinned messages as the thread shows them, until they are unchanged', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno]);
+    $message = pushToOrg($nuno, $org, 'deploy runbook');
+    $this->actingAs($this->user)->putJson(route('message-pin.update', $message))->assertOk();
+
+    $version = signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', $org))
+        ->assertOk()
+        ->assertJsonPath('data.pinned.0.id', $message->id)
+        ->assertJsonPath('data.pinned.0.body', 'deploy runbook')
+        ->assertJsonPath('data.pinned.0.user.lane', $nuno->lane())
+        ->assertJsonPath('data.pinned.0.created_at', $message->created_at->toIso8601ZuluString())
+        ->json('data.reactions_version');
+
+    expect(signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', ['org' => $org, 'after' => $message->id, 'reactions_after' => $version]))->json('data'))
+        ->toHaveKey('pinned', null);
+});
+
 it('keeps people out of orgs they are not in', function (): void {
     $maintainer = User::factory()->withRemotes()->create();
     [$nuno] = followersOf($maintainer, 1);

@@ -54,6 +54,11 @@ final class Conversation extends Model
     public const int MAX_MEMBERS = 100;
 
     /**
+     * An org pins up to twenty-five messages at a time.
+     */
+    public const int MAX_PINS = 25;
+
+    /**
      * Two people share exactly one conversation, whichever of them started it.
      */
     public static function pairOf(User $user, User $other): string

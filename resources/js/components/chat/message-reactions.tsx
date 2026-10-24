@@ -1,6 +1,6 @@
 import { Transition } from '@headlessui/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Copy, Search, SmilePlus } from 'lucide-react';
+import { Copy, Pin, PinOff, Search, SmilePlus } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -276,7 +276,8 @@ function ReactionChip({
 /**
  * The quick reactions and the picker, in a row that unfolds under the message when its react button is pressed,
  * nudging what follows down, and folds back once an emoji is picked, Escape is pressed, or anything else is clicked.
- * It stays in the tree so the fold animates both ways, and is inert while folded.
+ * It stays in the tree so the fold animates both ways, and is inert while folded. Beside its trigger, it floats over
+ * the row before the trigger's positioned parent instead, so nothing moves.
  */
 export function ReactionTray({
     id,
@@ -288,6 +289,7 @@ export function ReactionTray({
     hasReactions,
     isMine,
     onReact,
+    placement = 'below',
 }: {
     id: string;
     isOpen: boolean;
@@ -298,6 +300,7 @@ export function ReactionTray({
     hasReactions: boolean;
     isMine: boolean;
     onReact: (emoji: string) => void;
+    placement?: 'below' | 'beside';
 }) {
     const tray = useRef<HTMLDivElement>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -391,6 +394,12 @@ export function ReactionTray({
                 reservesFirstReaction
                     ? 'pb-7 transition-[grid-template-rows,margin-bottom,padding-bottom]'
                     : 'transition-[grid-template-rows,margin-bottom]',
+                // Lower by half the room kept under the toolbar for its shadow, so the toolbar centres on the row.
+                placement === 'beside' &&
+                    cn(
+                        'absolute top-[calc(50%+0.375rem)] right-full z-10 mr-1 mb-0 w-max -translate-y-1/2 grid-rows-[1fr] pb-0 transition-opacity',
+                        { 'opacity-0': !isOpen },
+                    ),
             )}
             data-test="reaction-tray"
         >
@@ -862,7 +871,7 @@ export function useTouchReactions(
 
 /**
  * What a long press opens on a touch screen: the message lifted above the thread with the quick reactions over it,
- * and the full picker in a sheet from the bottom.
+ * and the full picker in a sheet from the bottom. Maintainers can pin or unpin the message from it too.
  */
 export function ReactionSheet({
     isOpen,
@@ -873,6 +882,7 @@ export function ReactionSheet({
     body,
     preview,
     onReact,
+    pin = null,
 }: {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
@@ -882,6 +892,7 @@ export function ReactionSheet({
     body: string;
     preview: ReactNode;
     onReact: (emoji: string) => void;
+    pin?: { isPinned: boolean; onToggle: () => void } | null;
 }) {
     const [isPicking, setIsPicking] = useState(false);
     const [isReleased, setIsReleased] = useState(false);
@@ -1035,6 +1046,25 @@ export function ReactionSheet({
                             >
                                 <Copy aria-hidden className="size-4" />
                                 Copy text
+                            </button>
+                        )}
+                        {pin !== null && !isPicking && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    close();
+                                    pin.onToggle();
+                                }}
+                                data-sheet-part
+                                className="flex w-max items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm shadow-sm"
+                                data-test="sheet-pin"
+                            >
+                                {pin.isPinned ? (
+                                    <PinOff aria-hidden className="size-4" />
+                                ) : (
+                                    <Pin aria-hidden className="size-4" />
+                                )}
+                                {pin.isPinned ? 'Unpin message' : 'Pin message'}
                             </button>
                         )}
                     </div>

@@ -70,6 +70,18 @@ it('keeps images out of the history an org member cannot see', function (): void
     $this->get(route('message-image.show', $after))->assertOk();
 });
 
+it('serves the images of a pinned message to every org member, whatever history they were given', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $message = pushToOrg($nuno, $org);
+    $image = storedMessageImage($message);
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->putJson(route('message-pin.update', $message))->assertOk();
+
+    $this->actingAs($taylor)->get(route('message-image.show', $image))->assertOk();
+});
+
 it('requires authentication', function (): void {
     $image = storedMessageImage(Message::factory()->create());
 

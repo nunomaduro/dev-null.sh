@@ -11,8 +11,9 @@ final readonly class UpdateMessageReactionsVersion
 {
     /**
      * Polls ask for the reactions changed since a version, so each change takes the conversation's next version and
-     * marks its message with it. Bumping the conversation locks its row until the change commits, keeping versions in
-     * the order they become visible.
+     * marks its message with it. Pinning and unpinning move the version too, so polls hand an org's pinned messages
+     * over again. Bumping the conversation locks its row until the change commits, keeping versions in the order they
+     * become visible.
      */
     public function handle(Message $message): void
     {

@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Cache;
  *     has_older: bool,
  *     reactions_version: int,
  *     reaction_changes: Collection<int, ReactionChange>,
+ *     pinned: Collection<int, Message>|null,
  *     read_through_id: int,
  *     members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>,
  *     typing: array<int, string>,
@@ -52,6 +53,11 @@ use Illuminate\Support\Facades\Cache;
 final readonly class ConversationThreadQuery
 {
     public const int PAGE = 50;
+
+    public function __construct(private PinnedMessagesQuery $pinnedMessages)
+    {
+        //
+    }
 
     /**
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
@@ -90,6 +96,9 @@ final readonly class ConversationThreadQuery
 
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
+     * The messages the org pinned come whatever history the user was given, and polls get them again only once the
+     * reactions version moved past the one they sent, as pinning and unpinning move it. They are null when unchanged,
+     * and on older pages, where the thread keeps the ones it has.
      *
      * @return OrgThread
      */
@@ -118,6 +127,7 @@ final readonly class ConversationThreadQuery
             'has_older' => $hasOlder,
             'reactions_version' => $org->reactions_version,
             'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
+            'pinned' => $before === null && ($reactionsAfter === null || $org->reactions_version > $reactionsAfter) ? $this->pinnedMessages->get($org) : null,
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,

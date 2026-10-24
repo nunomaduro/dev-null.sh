@@ -10,6 +10,7 @@ import ConversationPinController from '@/actions/App/Http/Controllers/Conversati
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
+import MessagePinController from '@/actions/App/Http/Controllers/MessagePinController';
 import MessageReactionController from '@/actions/App/Http/Controllers/MessageReactionController';
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
@@ -22,6 +23,15 @@ import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingControl
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
+import {
+    acceptedPins,
+    reactionsAfterOf,
+    withPin,
+    withPinRestored,
+    withoutPin,
+    withShownReactions,
+} from '@/lib/pins';
+import type { Pins } from '@/lib/pins';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
 import {
@@ -90,6 +100,14 @@ export type ThreadState = {
     members: OrgMember[];
     typing: string[];
     role: OrgRole | null;
+    /**
+     * The org's pinned messages, latest pinned first, which everyone in the org sees whatever history they were given.
+     */
+    pinned: Message[];
+    /**
+     * The reactions version the pinned messages are current with, which only moves when a list of them is taken.
+     */
+    pinnedVersion: number | null;
     is_archived: boolean;
     pinned_at: string | null;
     muted_until_at: string | null;
@@ -171,6 +189,14 @@ const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
+const pinsInFlight = new Map<string, number>();
+/**
+ * The newest pinned messages a pin request handed back while others in the org were still in flight.
+ */
+const newestPins = new Map<
+    string,
+    { pinned: Message[]; version: number; sentAt: number }
+>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
@@ -427,7 +453,7 @@ function withReactionChanges(
             .map((change) => [change.id, change.reactions]),
     );
 
-    if (changed.size === 0) {
+    if (!messages.some((message) => changed.has(message.id))) {
         return messages;
     }
 
@@ -436,6 +462,47 @@ function withReactionChanges(
             ? { ...message, reactions: changed.get(message.id) }
             : message,
     );
+}
+
+/**
+ * Whether a message's reactions are the user's own to settle: they are reacting to it right now, or reacted to it after
+ * the request was sent.
+ */
+function isReactionHeld(sentAt: number): (id: number) => boolean {
+    return (id) =>
+        reactionsInFlight.has(id) ||
+        (reactionsSettledAt.get(id) ?? 0) >= sentAt;
+}
+
+/**
+ * The thread's pinned messages once the server sent a list with the reactions version it read before it, or none.
+ * A list the thread doesn't take still gets the reaction changes sent with it.
+ */
+function pinsFrom(
+    key: string,
+    thread: ThreadState,
+    pinned: Message[] | null,
+    version: number,
+    changes: MessageReactionChange[],
+    sentAt: number,
+): Pins {
+    const pins = acceptedPins(thread, pinned, version, pinsInFlight.has(key));
+
+    if (pins === null) {
+        return {
+            pinned: withReactionChanges(thread.pinned, changes, sentAt),
+            pinnedVersion: thread.pinnedVersion,
+        };
+    }
+
+    return {
+        pinned: withShownReactions(
+            pins.pinned,
+            [...thread.messages, ...thread.pinned],
+            isReactionHeld(sentAt),
+        ),
+        pinnedVersion: pins.pinnedVersion,
+    };
 }
 
 function unreadOf(conversations: ConversationSummary[]): number {
@@ -719,6 +786,8 @@ function emptyThread(target: ChatTarget): ThreadState {
         members: [],
         typing: [],
         role: null,
+        pinned: [],
+        pinnedVersion: null,
         is_archived: false,
         pinned_at: null,
         muted_until_at: null,
@@ -775,6 +844,14 @@ export function seedThread(
                 ...fromServer(thread),
                 target,
                 messages: mergeMessages(current.messages, thread.messages),
+                ...pinsFrom(
+                    key,
+                    current,
+                    'pinned' in thread ? thread.pinned : null,
+                    thread.reactions_version,
+                    [],
+                    performance.now(),
+                ),
                 has_older: current.isLoaded
                     ? current.has_older
                     : thread.has_older,
@@ -1064,7 +1141,12 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
     const reactionsAfter =
-        after === null ? null : (thread?.reactions_version ?? null);
+        after === null
+            ? null
+            : reactionsAfterOf(
+                  thread?.reactions_version ?? null,
+                  target.kind === 'org' ? (thread?.pinnedVersion ?? 0) : null,
+              );
     const polledAt = performance.now();
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
@@ -1119,6 +1201,14 @@ async function pollThread(target: ChatTarget): Promise<void> {
                         polledAt,
                     ),
                     fresh.messages,
+                ),
+                ...pinsFrom(
+                    key,
+                    current,
+                    'pinned' in fresh ? fresh.pinned : null,
+                    fresh.reactions_version,
+                    fresh.reaction_changes,
+                    polledAt,
                 ),
                 reactions_version: Math.max(
                     current.reactions_version ?? 0,
@@ -1405,17 +1495,30 @@ function countReactionUse(emoji: string, change: 1 | -1): void {
     }
 }
 
+/**
+ * A message can show twice, in the thread and among the pinned ones, or only among the pinned ones for a member added
+ * after it without its history.
+ */
 function setReactions(
     key: string,
     messageId: number,
     change: (reactions: MessageReaction[]) => MessageReaction[],
 ): void {
+    const changed = (messages: Message[]) =>
+        messages.some((message) => message.id === messageId)
+            ? messages.map((message) =>
+                  message.id === messageId
+                      ? {
+                            ...message,
+                            reactions: change(message.reactions ?? []),
+                        }
+                      : message,
+              )
+            : messages;
+
     updateThread(key, (thread) => ({
-        messages: thread.messages.map((message) =>
-            message.id === messageId
-                ? { ...message, reactions: change(message.reactions ?? []) }
-                : message,
-        ),
+        messages: changed(thread.messages),
+        pinned: changed(thread.pinned),
     }));
 }
 
@@ -1430,9 +1533,11 @@ export async function toggleReaction(
     userId: string,
 ): Promise<boolean> {
     const key = targetKey(target);
-    const message = state.threads[key]?.messages.find(
-        (item) => item.id === messageId,
-    );
+    const thread = state.threads[key];
+    const message = [
+        ...(thread?.messages ?? []),
+        ...(thread?.pinned ?? []),
+    ].find((item) => item.id === messageId);
 
     if (message === undefined) {
         return false;
@@ -1488,6 +1593,81 @@ export async function toggleReaction(
         countReactionUse(emoji, isRemoving ? 1 : -1);
 
         return false;
+    }
+}
+
+/**
+ * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
+ * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
+ * when the server refuses.
+ */
+export async function setMessagePinned(
+    target: ChatTarget,
+    message: Message,
+    isPinned: boolean,
+): Promise<void> {
+    const key = targetKey(target);
+    const shown = state.threads[key]?.pinned ?? [];
+    const index = shown.findIndex((item) => item.id === message.id);
+    const sentAt = performance.now();
+
+    if (isPinned === (index !== -1)) {
+        return;
+    }
+
+    pinsInFlight.set(key, (pinsInFlight.get(key) ?? 0) + 1);
+    updateThread(key, (thread) => ({
+        pinned: isPinned
+            ? withPin(thread.pinned, message)
+            : withoutPin(thread.pinned, message),
+    }));
+
+    try {
+        const { pinned, reactions_version: version } = await request<{
+            pinned: Message[];
+            reactions_version: number;
+        }>(
+            isPinned
+                ? MessagePinController.update.url({ message: message.id })
+                : MessagePinController.destroy.url({ message: message.id }),
+            isPinned ? 'PUT' : 'DELETE',
+        );
+
+        // Responses can arrive out of order, so the newest one wins.
+        if ((newestPins.get(key)?.version ?? -1) <= version) {
+            newestPins.set(key, { pinned, version, sentAt });
+        }
+    } catch (error) {
+        updateThread(key, (thread) => ({
+            pinned: isPinned
+                ? withoutPin(thread.pinned, message)
+                : withPinRestored(thread.pinned, shown[index], index),
+        }));
+
+        throw error;
+    } finally {
+        const left = (pinsInFlight.get(key) ?? 1) - 1;
+        const newest = newestPins.get(key);
+
+        if (left > 0) {
+            pinsInFlight.set(key, left);
+        } else {
+            pinsInFlight.delete(key);
+            newestPins.delete(key);
+
+            if (newest !== undefined) {
+                updateThread(key, (thread) =>
+                    pinsFrom(
+                        key,
+                        thread,
+                        newest.pinned,
+                        newest.version,
+                        [],
+                        newest.sentAt,
+                    ),
+                );
+            }
+        }
     }
 }
 

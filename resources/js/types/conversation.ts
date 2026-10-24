@@ -60,6 +60,7 @@ export type Message = {
     subject_id?: string | null;
     user?: User;
     subject?: User | null;
+    pinned_at?: string | null;
     created_at: string;
 };
 
@@ -136,6 +137,11 @@ export type OrgThread = {
     muted_until_at: string | null;
     role: OrgRole | null;
     access: PushAccess;
+    /**
+     * The org's pinned messages, latest pinned first. Null when they haven't changed since the reactions version the
+     * poll asked after, so the ones already shown stay.
+     */
+    pinned: Message[] | null;
 };
 
 /**

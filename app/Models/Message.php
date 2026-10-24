@@ -9,6 +9,7 @@ use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read OrgEvent|null $event
  * @property-read string|null $subject_id
  * @property-read int $reactions_version
+ * @property-read CarbonInterface|null $pinned_at
  * @property-read User $user
  * @property-read User|null $subject
  * @property-read Message|null $replyTo
@@ -42,7 +44,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
+#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'pinned_at', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
 final class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -73,6 +75,7 @@ final class Message extends Model
             'event' => OrgEvent::class,
             'subject_id' => 'string',
             'reactions_version' => 'integer',
+            'pinned_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -147,14 +150,15 @@ final class Message extends Model
     }
 
     /**
-     * Only the people in the conversation see a message, and in an org only from where their history starts.
+     * Only the people in the conversation see a message, and in an org only from where their history starts, unless
+     * the org pinned it for everyone.
      */
     public function isVisibleTo(User $user): bool
     {
         return ConversationParticipant::query()
             ->where('conversation_id', $this->conversation_id)
             ->where('user_id', $user->id)
-            ->where('visible_from_id', '<', $this->id)
+            ->when($this->pinned_at === null, fn (Builder $query): Builder => $query->where('visible_from_id', '<', $this->id))
             ->exists();
     }
 

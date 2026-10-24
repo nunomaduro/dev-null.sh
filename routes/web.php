@@ -59,6 +59,7 @@ use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
+use App\Http\Controllers\MessagePinController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
@@ -376,6 +377,13 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
             ->whereNumber('message')
             ->name('message-reaction.destroy');
+        Route::put('remotes/messages/{message}/pin', [MessagePinController::class, 'update'])
+            ->whereNumber('message')
+            ->middleware(PreventPostingInTimeout::class)
+            ->name('message-pin.update');
+        Route::delete('remotes/messages/{message}/pin', [MessagePinController::class, 'destroy'])
+            ->whereNumber('message')
+            ->name('message-pin.destroy');
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])

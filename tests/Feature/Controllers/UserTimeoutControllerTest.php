@@ -174,10 +174,11 @@ it('stops a user in timeout from sending remotes', function (): void {
         ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
 });
 
-it('stops a user in timeout from starting, renaming, or growing orgs and messaging them', function (): void {
+it('stops a user in timeout from starting, renaming, or growing orgs, and from messaging or pinning in them', function (): void {
     $user = User::factory()->create();
     [$member, $newcomer] = followersOf($user, 2);
     $org = createOrg($user, [$member]);
+    $message = pushToOrg($member, $org);
     UserTimeout::factory()->for($user)->create();
 
     $this->actingAs($user)
@@ -188,10 +189,12 @@ it('stops a user in timeout from starting, renaming, or growing orgs and messagi
     $this->putJson(route('org.update', $org), ['name' => 'buy my course'])->assertForbidden();
     $this->postJson(route('org-member.store', $org), ['members' => [$newcomer->username], 'share_history' => false])->assertForbidden();
     $this->postJson(route('org-message.store', $org), ['body' => 'hello', 'client_id' => Str::uuid()->toString()])->assertForbidden();
+    $this->putJson(route('message-pin.update', $message))->assertForbidden();
 
     expect(Conversation::query()->count())->toBe(1)
         ->and(Conversation::query()->sole()->name)->toBe('dev/null core')
-        ->and(Conversation::query()->sole()->participants()->count())->toBe(2);
+        ->and(Conversation::query()->sole()->participants()->count())->toBe(2)
+        ->and($message->fresh()?->pinned_at)->toBeNull();
 });
 
 it('tells the user how long is left of the timeout that ends last, rounded up', function (string $endsIn, string $remaining): void {

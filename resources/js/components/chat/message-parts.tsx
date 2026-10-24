@@ -1,9 +1,10 @@
-import { Image, Mic, Reply, SmilePlus } from 'lucide-react';
+import { Image, Mic, Pin, Reply, SmilePlus } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
 import { preloadEmojiGroups } from '@/components/chat/message-reactions';
+import { VoiceNote } from '@/components/chat/voice-note';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
@@ -57,6 +58,63 @@ const isUnsent = (images: MessageImage[] | File[]): images is File[] =>
 const downloadUrl = (image: ShownImage): string =>
     showMessageImage.url(image.id, { query: { download: 1 } });
 
+/**
+ * A message as the composer quotes it when replying to it.
+ */
+export function replyOf(message: Message): MessageReply {
+    return {
+        id: message.id,
+        user_id: message.user_id,
+        body: message.body,
+        images_count: message.images?.length ?? 0,
+        has_voice: (message.voice ?? null) !== null,
+    };
+}
+
+export function timeOf(date: string): string {
+    return new Date(date).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+/**
+ * The message a long press lifts above the thread: its voice note, or its text.
+ */
+export function LiftedMessage({
+    message,
+    isMine,
+}: {
+    message: Message;
+    isMine: boolean;
+}) {
+    const voice = message.voice ?? null;
+
+    if (voice === null && message.body === '') {
+        return null;
+    }
+
+    return (
+        <div
+            className={cn(
+                'w-fit max-w-full rounded-lg shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                voice === null
+                    ? 'px-3.5 py-2 text-[15px] wrap-anywhere'
+                    : 'p-2',
+                isMine
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground',
+            )}
+        >
+            {voice === null ? (
+                <MessageText message={message} isMine={isMine} />
+            ) : (
+                <VoiceNote voice={voice} />
+            )}
+        </div>
+    );
+}
+
 export function MessageImages({ images }: { images: MessageImage[] | File[] }) {
     const [viewedIndex, setViewedIndex] = useState<number | null>(null);
 
@@ -105,7 +163,10 @@ export function MessageLinkCard({ message }: { message: Message }) {
     );
 }
 
-function snippetOf(reply: MessageReply): ReactNode {
+/**
+ * A message's first words on one line, or what it carries when it has none.
+ */
+export function snippetOf(reply: MessageReply): ReactNode {
     const body = reply.body
         .replace(/```[\s\S]*?(```|$)/g, ' code ')
         .replace(/`/g, '')
@@ -319,8 +380,10 @@ export function Repliable({
 }
 
 /**
- * Reply and react, just outside the end of the bubble they belong to and vertically centred on it, so they take no
- * room in the thread. They show on hover or focus, and stay while the reaction tray under the message is open.
+ * Pin, reply and react, just outside the end of the bubble they belong to and vertically centred on it, so they take
+ * no room in the thread. They show on hover or focus, and stay while the reaction tray under the message is open. A
+ * pinned message's pin always shows, nearest the bubble, so the others fade in beyond it without moving it, and only
+ * maintainers can press it.
  */
 export function BubbleActions({
     isMine,
@@ -329,6 +392,8 @@ export function BubbleActions({
     isReacting,
     reactRef,
     trayId,
+    pin = null,
+    isBelowReply = false,
 }: {
     isMine: boolean;
     onReply: (() => void) | null;
@@ -336,32 +401,126 @@ export function BubbleActions({
     isReacting: boolean;
     reactRef: RefObject<HTMLButtonElement | null>;
     trayId: string;
+    pin?: { isPinned: boolean; onToggle: (() => void) | null } | null;
+    /**
+     * The reply's quote overlaps the top 10px of the bubble, so the actions centre on what it leaves showing.
+     */
+    isBelowReply?: boolean;
 }) {
-    if (onReply === null && onReact === null) {
+    // The pointer is still on the pin right after pinning, so it doesn't act as Unpin until it leaves, as Follow does.
+    const [isJustPinned, setIsJustPinned] = useState(false);
+    const pinButton = useRef<HTMLButtonElement>(null);
+    const isPinned = pin?.isPinned ?? false;
+    const togglePin = pin?.onToggle ?? null;
+    const isPinShown = isPinned || togglePin !== null;
+    const pinLabel = isPinned ? (isJustPinned ? 'Pinned' : 'Unpin') : 'Pin';
+
+    // Only the pointer moving off the pin counts as leaving it: the warning's overlay opening over a resting pointer
+    // doesn't, so the pin stays safe through the warning too.
+    useEffect(() => {
+        if (!isJustPinned) {
+            return;
+        }
+
+        const onPointerMove = (event: PointerEvent) => {
+            const box = pinButton.current?.getBoundingClientRect();
+
+            if (
+                box === undefined ||
+                event.clientX < box.left ||
+                event.clientX > box.right ||
+                event.clientY < box.top ||
+                event.clientY > box.bottom
+            ) {
+                setIsJustPinned(false);
+            }
+        };
+
+        document.addEventListener('pointermove', onPointerMove);
+
+        return () => document.removeEventListener('pointermove', onPointerMove);
+    }, [isJustPinned]);
+
+    if (onReply === null && onReact === null && !isPinShown) {
         return null;
     }
 
     const button =
-        'grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+        'grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+    const transient = cn(
+        button,
+        'opacity-0 transition-[color,background-color,opacity] group-hover/message:opacity-100 group-has-focus-visible/actions:opacity-100 group-data-open/actions:opacity-100 pointer-coarse:hidden',
+    );
 
     return (
         <div
             data-open={isReacting ? '' : undefined}
             className={cn(
-                'absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/message:opacity-100 has-focus-visible:opacity-100 data-open:opacity-100 pointer-coarse:hidden',
+                'group/actions absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5',
                 isMine
                     ? 'right-full mr-1.5 flex-row-reverse'
                     : 'left-full ml-1.5',
+                { 'top-[calc(50%+0.3125rem)]': isBelowReply },
             )}
             data-test="bubble-actions"
         >
+            {isPinShown &&
+                (togglePin === null ? (
+                    <span
+                        role="img"
+                        aria-label="Pinned"
+                        title="Pinned"
+                        className="grid size-7 place-items-center text-muted-foreground"
+                        data-test="pinned-glyph"
+                    >
+                        <Pin aria-hidden className="size-4 fill-current" />
+                    </span>
+                ) : (
+                    <button
+                        ref={pinButton}
+                        type="button"
+                        onClick={(event) => {
+                            if (isPinned && isJustPinned) {
+                                return;
+                            }
+
+                            // Only a pointer stays on it: the keyboard can unpin straight away.
+                            setIsJustPinned(!isPinned && event.detail > 0);
+                            togglePin();
+                        }}
+                        aria-label={pinLabel}
+                        title={pinLabel}
+                        aria-pressed={isPinned}
+                        className={
+                            isPinned
+                                ? cn(
+                                      button,
+                                      // A bigger target for fingers, without changing how it looks or sits.
+                                      'relative text-primary transition-colors hover:text-primary pointer-coarse:before:absolute pointer-coarse:before:-inset-2',
+                                      {
+                                          'cursor-default hover:bg-transparent':
+                                              isJustPinned,
+                                      },
+                                  )
+                                : transient
+                        }
+                        data-test="pin-button"
+                    >
+                        <Pin
+                            aria-hidden
+                            className={cn('size-4', {
+                                'fill-current': isPinned,
+                            })}
+                        />
+                    </button>
+                ))}
             {onReply !== null && (
                 <button
                     type="button"
                     onClick={onReply}
                     aria-label="Reply"
                     title="Reply"
-                    className={button}
+                    className={transient}
                     data-test="reply-button"
                 >
                     <Reply aria-hidden className="size-4" />
@@ -377,7 +536,7 @@ export function BubbleActions({
                     title="React"
                     aria-expanded={isReacting}
                     aria-controls={trayId}
-                    className={cn(button, {
+                    className={cn(transient, {
                         'bg-accent text-foreground': isReacting,
                     })}
                     data-test="react-button"
