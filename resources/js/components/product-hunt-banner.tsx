@@ -19,10 +19,19 @@ export function ProductHuntBanner() {
     const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
-        const interval = setInterval(() => setNow(Date.now()), 1000);
+        if (now >= LAUNCH_ENDS_AT) {
+            return;
+        }
 
-        return () => clearInterval(interval);
-    }, []);
+        const nextChange =
+            now < LAUNCH_STARTS_AT ? LAUNCH_STARTS_AT : LAUNCH_ENDS_AT;
+        const timeout = setTimeout(
+            () => setNow(Date.now()),
+            Math.max(0, nextChange - Date.now()),
+        );
+
+        return () => clearTimeout(timeout);
+    }, [now]);
 
     if (now < LAUNCH_STARTS_AT || now >= LAUNCH_ENDS_AT) {
         return null;

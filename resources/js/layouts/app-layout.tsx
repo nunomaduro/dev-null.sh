@@ -44,6 +44,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
+    // Public feeds and documents have no unread counts, and these routes cannot be deleted.
+    const skipCountPolling =
+        isGuest &&
+        [
+            'log/show',
+            'about/show',
+            'brand/show',
+            'changelog/show',
+            'privacy/show',
+            'search/index',
+            'terms/show',
+        ].includes(component);
     const isMessages = component.startsWith('conversation/');
     const hasComposer = component === 'log/show' && !isGuest;
     const isComposerInView = useIsComposerInView();
@@ -80,7 +92,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
                 className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
             >
-                {deletedPage === null && (
+                {deletedPage === null && !skipCountPolling && (
                     <NotificationCountPolling
                         isInbox={component === 'notification/index'}
                         onNotFound={markPageDeleted}
