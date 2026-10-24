@@ -310,6 +310,7 @@ it('lists every group through a date when asked, like the web refreshing its inb
 });
 
 it('says which group a notification leads, how many events it has, and whether the user follows the actor', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $first = Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
     $latest = Notification::factory()->for($this->user, 'recipient')->create();
     $this->user->following()->attach($latest->actor);

@@ -163,6 +163,7 @@ it('shows the level reached with its rank, in all notifications only', function 
 });
 
 it('says whether the user follows each new follower back', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
     $latest = Notification::factory()->for($user, 'recipient')->create();
@@ -187,6 +188,7 @@ it('says whether the user follows each new follower back', function (): void {
 });
 
 it('gives the lane of every actor so each notification takes their color', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     $earlier = Notification::factory()->for($user, 'recipient')
         ->for(User::factory()->state(['preferred_lane' => 2]), 'actor')
