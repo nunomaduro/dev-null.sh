@@ -19,6 +19,7 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
+    { keys: [keys.mod, 'B'], label: 'Collapse or expand navigation' },
     { keys: ['/'], label: 'Search developers and commits' },
     { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
     { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
@@ -36,14 +37,14 @@ const moderationShortcuts: Shortcut[] = [
 
 function ShortcutList({ shortcuts }: { shortcuts: Shortcut[] }) {
     return (
-        <dl className="divide-y text-sm">
+        <dl className="grid gap-x-8 text-sm sm:grid-cols-2">
             {shortcuts.map((shortcut) => (
                 <div
                     key={shortcut.keys.join('')}
-                    className="flex items-center justify-between gap-4 py-2"
+                    className="flex items-center justify-between gap-4 border-b py-2"
                 >
                     <dt>{shortcut.label}</dt>
-                    <dd className="flex gap-1">
+                    <dd className="flex shrink-0 gap-1">
                         {shortcut.keys.map((key) => (
                             <kbd
                                 key={key}
@@ -72,7 +73,7 @@ export function KeyboardShortcutsDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogTitle>Keyboard shortcuts</DialogTitle>
                 <DialogDescription>
                     They work anywhere except while you're typing.

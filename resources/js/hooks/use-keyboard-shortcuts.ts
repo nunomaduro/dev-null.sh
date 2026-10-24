@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { useNavOpen } from '@/hooks/use-nav-open';
 import { signIn } from '@/lib/auth';
 import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
@@ -81,6 +82,8 @@ export function useKeyboardShortcuts(
     onSearch: () => void,
     onCompose: () => void,
 ): void {
+    const { isNavOpen, setNavOpen } = useNavOpen();
+
     useEffect(() => {
         let awaitingGoTo = false;
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -99,6 +102,25 @@ export function useKeyboardShortcuts(
             if (hasModKey(event) && event.key.toLowerCase() === 'k') {
                 event.preventDefault();
                 onSearch();
+
+                return;
+            }
+
+            if (
+                !event.defaultPrevented &&
+                hasModKey(event) &&
+                !event.altKey &&
+                !event.shiftKey &&
+                !event.repeat &&
+                event.key.toLowerCase() === 'b' &&
+                !isTyping(event.target) &&
+                window.matchMedia('(min-width: 1024px)').matches &&
+                !document.querySelector(
+                    '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
+                )
+            ) {
+                event.preventDefault();
+                setNavOpen(!isNavOpen);
 
                 return;
             }
@@ -171,5 +193,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, log, onShowHelp, onSearch, onCompose]);
+    }, [user, log, onShowHelp, onSearch, onCompose, isNavOpen, setNavOpen]);
 }
