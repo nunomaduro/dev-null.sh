@@ -36,6 +36,8 @@ use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
+use App\Http\Controllers\Api\SuggestedUserController;
+use App\Http\Controllers\Api\SuggestionDismissalController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -166,6 +168,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:username}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // Who to Follow...
+        Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
+        Route::post('users/{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])->name('api-suggestion-dismissal.store');
 
         // User Mute...
         Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');
