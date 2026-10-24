@@ -72,6 +72,14 @@ it('returns not found for unknown usernames', function (): void {
     $this->getJson('/api/v1/users/missing')->assertNotFound();
 });
 
+it('finds a username in any case, like github', function (): void {
+    User::factory()->create(['username' => 'NunoMaduro']);
+
+    $this->getJson('/api/v1/users/nunomaduro')
+        ->assertOk()
+        ->assertJsonPath('data.username', 'NunoMaduro');
+});
+
 it('shows a signed request the profile as the web shows it to its user', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
 

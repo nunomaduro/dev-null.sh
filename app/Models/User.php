@@ -12,13 +12,17 @@ use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
@@ -375,6 +379,20 @@ final class User extends Authenticatable
     public function isOnboarded(): bool
     {
         return $this->onboarded_at !== null;
+    }
+
+    /**
+     * GitHub usernames are unique case-insensitively, so `/@NunoMaduro` finds `nunomaduro` like github.com does.
+     *
+     * @param  Model|Builder<User>|Relation<User, Model, mixed>  $query
+     */
+    public function resolveRouteBindingQuery(mixed $query, mixed $value, mixed $field = null): BuilderContract
+    {
+        if ($field === 'username' && is_string($value)) {
+            return $query->whereRaw('LOWER(username) = ?', [mb_strtolower($value)]);
+        }
+
+        return parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     public function isAdmin(): bool

@@ -322,6 +322,23 @@ it('returns not found for unknown usernames', function (): void {
     $response->assertNotFound();
 });
 
+it('finds the profile and commits of a username in any case, like github', function (): void {
+    $user = User::factory()->create(['username' => 'NunoMaduro']);
+    $commit = Commit::factory()->for($user)->create();
+    $viewer = User::factory()->create();
+
+    foreach (['/@nunomaduro', '/@NUNOMADURO', '/@NunoMaduro'] as $url) {
+        $this->actingAs($viewer)
+            ->get($url)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('user.username', 'NunoMaduro'));
+    }
+
+    $this->actingAs($viewer)
+        ->get('/@nunomaduro/commits/'.$commit->id)
+        ->assertOk();
+});
+
 it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
         'username' => 'octocat',
