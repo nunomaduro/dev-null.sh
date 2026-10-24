@@ -113,6 +113,7 @@ final class HandleInertiaRequests extends Middleware
                 ? resolve(LiveFollowingQuery::class)->get($user)
                 : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            'autoPictureInPicture' => $request->cookie('auto_picture_in_picture') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [

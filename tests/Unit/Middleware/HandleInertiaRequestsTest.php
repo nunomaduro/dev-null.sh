@@ -262,6 +262,31 @@ it('does not dim lanes when disabled', function (): void {
     expect($shared['dimsLanes'])->toBeFalse();
 });
 
+it('plays videos in picture-in-picture automatically by default or when enabled', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('auto_picture_in_picture', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['autoPictureInPicture'])->toBeTrue();
+})->with(['', 'true']);
+
+it('does not play videos in picture-in-picture automatically when disabled', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->cookies->set('auto_picture_in_picture', 'false');
+
+    $shared = $middleware->share($request);
+
+    expect($shared['autoPictureInPicture'])->toBeFalse();
+});
+
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
     $middleware = new HandleInertiaRequests();
 

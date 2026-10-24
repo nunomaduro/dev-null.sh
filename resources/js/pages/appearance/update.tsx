@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
+import AutoPictureInPictureTabs from '@/components/auto-picture-in-picture-tabs';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
 import NavigationTabs from '@/components/navigation-tabs';
@@ -35,6 +36,14 @@ export default function Update() {
                     description="Fade the other commits while your pointer rests on one, or on its author, so their lane stands out."
                 />
                 <LaneDimmingTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Automatic picture-in-picture"
+                    description="Move a playing video to a corner of the screen by itself when you scroll past it or open another page. You can always do it yourself with the picture-in-picture button under the video."
+                />
+                <AutoPictureInPictureTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">

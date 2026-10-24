@@ -39,6 +39,7 @@ export default defineConfig({
             'tests/Unit/RailEntrance.test.tsx',
             'tests/Unit/LogInsertion.test.tsx',
             'tests/Unit/StagedRail.test.tsx',
+            'tests/Unit/VideoDock.test.tsx',
             'tests/Unit/ComposerPreview.test.tsx',
             'tests/Unit/UseNow.test.tsx',
             'tests/Unit/LinkEmbedHeight.test.tsx',

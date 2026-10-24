@@ -155,6 +155,7 @@ function DockedChat({ user }: { user: User }) {
             className="fixed right-6 bottom-0 z-30 flex h-(--chat-dock-height) w-[360px] flex-col overflow-hidden rounded-t-lg border border-b-0 bg-card shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.3)] transition-[height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
             data-chat-dock={dock.isExpanded ? 'expanded' : 'collapsed'}
             data-test="chat-dock"
+            data-video-dock-obstacle
         >
             {target !== null && dock.isExpanded ? (
                 <ConversationThread

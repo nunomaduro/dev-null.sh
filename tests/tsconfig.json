@@ -15,6 +15,7 @@
         "Unit/DraftImageReads.test.tsx",
         "Unit/ImageAttachments.test.tsx",
         "Unit/StagedRail.test.tsx",
+        "Unit/VideoDock.test.tsx",
         "Unit/UseNow.test.tsx",
         "Unit/FollowRequests.test.tsx",
         "Unit/FollowState.test.tsx",

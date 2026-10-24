@@ -579,6 +579,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         <nav
             ref={nav}
             aria-label="Main"
+            data-video-dock-obstacle
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden [:root[data-keyboard-open]_&]:hidden"
         >
             {children}

@@ -536,8 +536,25 @@ html body[data-scroll-locked] {
     z-index: 4;
 }
 
-::view-transition-group(toasts) {
+/*
+ * The floating video player is lifted out of the page too, above the headers a transition lifts, so they don't cover
+ * it. It shows live throughout, without fading between its old and new snapshots, so the video doesn't flicker.
+ */
+::view-transition-group(video-dock) {
     z-index: 5;
+    animation: none;
+}
+
+::view-transition-old(video-dock) {
+    display: none;
+}
+
+::view-transition-new(video-dock) {
+    animation: none;
+}
+
+::view-transition-group(toasts) {
+    z-index: 6;
 }
 
 ::view-transition-group(*.tab-content) {
