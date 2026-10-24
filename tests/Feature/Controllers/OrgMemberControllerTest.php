@@ -123,3 +123,13 @@ it('erases the images and voice notes of an org everyone has left', function ():
 
     expect(Storage::disk()->allFiles())->toBe([$elsewhere->path]);
 });
+
+it('ignores members already in the org and preserves participant integrity', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = Conversation::query()->findOrFail(createOrg($mark, [$nuno]));
+
+    resolve(App\Actions\CreateOrgMembers::class)->handle($mark, $org, collect([$nuno, $taylor]), true);
+
+    expect($org->participants()->count())->toBe(3);
+});

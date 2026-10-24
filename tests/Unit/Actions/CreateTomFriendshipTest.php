@@ -48,6 +48,20 @@ it('keeps befriending newcomers under the reserved handle instead of the real to
         ->and($owner->followers()->count())->toBe(0);
 });
 
+it('creates tom under fallback handle if username tom is already taken by a real user', function (): void {
+    $owner = User::factory()->create(['username' => 'tom']);
+    $user = User::factory()->create();
+
+    resolve(CreateTomFriendship::class)->handle($user);
+
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->sole();
+
+    expect($tom->username)->toBe('devnull-tom')
+        ->and($user->isFollowing($tom))->toBeTrue()
+        ->and($tom->isFollowing($user))->toBeTrue()
+        ->and($owner->following()->count())->toBe(0);
+});
+
 it('does not make tom follow himself or change his existing friendships', function (): void {
     $user = User::factory()->create();
     $action = resolve(CreateTomFriendship::class);

@@ -12,6 +12,7 @@ use App\Rules\VisibleCommit;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 final class ListMentionSuggestionsRequest extends FormRequest
 {
@@ -46,18 +47,24 @@ final class ListMentionSuggestionsRequest extends FormRequest
 
     public function reply(): ?Commit
     {
-        return $this->filled('reply') ? Commit::query()->find($this->string('reply')->value()) : null;
+        $id = $this->string('reply')->value();
+
+        return Str::isUuid($id) ? Commit::query()->find($id) : null;
     }
 
     public function quote(): ?Commit
     {
-        return $this->filled('quote') ? Commit::query()->find($this->string('quote')->value()) : null;
+        $id = $this->string('quote')->value();
+
+        return Str::isUuid($id) ? Commit::query()->find($id) : null;
     }
 
     public function org(): ?Conversation
     {
-        return $this->filled('org') && is_string($this->query('org'))
-            ? Conversation::query()->find($this->query('org'))
+        $id = $this->query('org');
+
+        return is_string($id) && Str::isUuid($id)
+            ? Conversation::query()->find($id)
             : null;
     }
 }

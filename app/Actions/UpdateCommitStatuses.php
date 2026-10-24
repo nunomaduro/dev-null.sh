@@ -89,7 +89,7 @@ final readonly class UpdateCommitStatuses
                     foreach ($commits as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
                             && $commit->isAddressedTo($tom)) {
-                            dispatch(new ReplyAsTom($commit->id));
+                            dispatch(new ReplyAsTom($commit->id))->afterCommit();
                         }
                     }
                 }

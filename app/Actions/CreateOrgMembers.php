@@ -27,9 +27,23 @@ final readonly class CreateOrgMembers
     public function handle(User $actor, Conversation $org, Collection $members, bool $sharesHistory): void
     {
         DB::transaction(function () use ($actor, $org, $members, $sharesHistory): void {
-            $latest = $org->fresh()->last_message_id ?? 0;
+            $lockedOrg = Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+            $existing = $lockedOrg->participants()->pluck('user_id');
+            $toAdd = $members->reject(fn (User $member): bool => $existing->contains($member->id));
 
-            foreach ($members as $member) {
+            if ($toAdd->isEmpty()) {
+                return;
+            }
+
+            abort_if(
+                $existing->count() + $toAdd->count() > Conversation::MAX_MEMBERS,
+                422,
+                'An org holds up to '.Conversation::MAX_MEMBERS.' people.',
+            );
+
+            $latest = $lockedOrg->last_message_id ?? 0;
+
+            foreach ($toAdd as $member) {
                 ConversationParticipant::query()->create([
                     'conversation_id' => $org->id,
                     'user_id' => $member->id,

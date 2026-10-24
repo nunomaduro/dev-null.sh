@@ -333,3 +333,22 @@ it('uses the quote thread rather than the quoted thread when replying to a quote
         ->assertOk()
         ->assertJsonPath('users.*.id', [$quote->user_id, $reply->user_id]);
 });
+
+it('handles non-uuid org, reply, and quote parameters gracefully without database exceptions', function (): void {
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['org' => 'not-a-valid-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['org']);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => 'not-a-valid-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['reply']);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['quote' => 'not-a-valid-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['quote']);
+});

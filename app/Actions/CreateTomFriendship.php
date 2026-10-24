@@ -50,9 +50,13 @@ final readonly class CreateTomFriendship
         }
 
         return DB::transaction(function (): User {
+            $username = User::query()->where('username', self::USERNAME)->exists()
+                ? self::FALLBACK_USERNAME
+                : self::USERNAME;
+
             $tom = User::query()->create([
                 'github_id' => self::GITHUB_ID,
-                'username' => self::USERNAME,
+                'username' => $username,
                 'name' => 'Tom',
                 'avatar_url' => asset('images/tom.webp'),
                 'bio' => "I'm here to help you get started on dev/null.",
