@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\PollOption;
 use App\Services\OpenAI;
 use Illuminate\Support\Facades\Storage;
 
@@ -35,11 +36,13 @@ final readonly class UpdateCommitAiDecision
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
-        $scores = $this->openAI->moderate($commit->body, $images);
+        $text = $this->text($commit);
+
+        $scores = $this->openAI->moderate($text, $images);
 
         $categories = array_keys($scores);
 
-        if ($commit->body !== '' && $this->openAI->isHarmful($commit->body)) {
+        if ($text !== '' && $this->openAI->isHarmful($text)) {
             $categories[] = 'harmful-text';
         }
 
@@ -55,5 +58,18 @@ final readonly class UpdateCommitAiDecision
         if ($categories === [] && $commit->user !== null) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
         }
+    }
+
+    /**
+     * All the text that goes public with the commit: the body, the image descriptions, and the poll options. A clean
+     * commit is approved, so nothing the author wrote may be left unchecked.
+     */
+    private function text(Commit $commit): string
+    {
+        return collect([$commit->body])
+            ->merge($commit->images->map(fn (CommitImage $image): ?string => $image->description))
+            ->merge($commit->poll?->options->map(fn (PollOption $option): string => $option->label) ?? [])
+            ->filter(fn (?string $part): bool => $part !== null && $part !== '')
+            ->implode("\n\n");
     }
 }

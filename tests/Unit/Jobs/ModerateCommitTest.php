@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Models\User;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
@@ -240,6 +241,56 @@ it('checks the images of a commit too, one per request', function (string $categ
         ],
     ]);
 })->with(['sexual', 'sexual/minors']);
+
+it('checks the image descriptions and poll options along with the body', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Which editor?']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0, 'description' => 'A screenshot']);
+    Poll::factory()->for($commit)->unopened()->withOptions('Vim', 'Emacs')->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/moderations')
+        && $request['input'][0] === ['type' => 'text', 'text' => "Which editor?\n\nA screenshot\n\nVim\n\nEmacs"]);
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
+        && $request['text']['format']['name'] === 'harmful'
+        && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => "Which editor?\n\nA screenshot\n\nVim\n\nEmacs"]]);
+});
+
+it('keeps a commit pending when only its image descriptions or poll options are flagged', function (string $where): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    Http::fake([
+        'api.openai.com/v1/moderations' => fn (Request $request): PromiseInterface => Http::response(
+            str_contains((string) json_encode($request['input']), 'buy my course') ? moderationResponse(['harassment']) : moderationResponse(),
+        ),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Which editor?']);
+    CommitImage::factory()->for($commit)->create([
+        'path' => 'commit-images/first.webp',
+        'position' => 0,
+        'description' => $where === 'image description' ? 'buy my course' : null,
+    ]);
+    Poll::factory()->for($commit)->unopened()->withOptions(...$where === 'poll option' ? ['buy my course', 'Emacs'] : ['Vim', 'Emacs'])->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->ai_categories->toBe(['harassment'])
+        ->status->toBe(CommitStatus::Pending);
+})->with(['image description', 'poll option']);
 
 it('checks only the images of a commit without a body', function (): void {
     Storage::fake();
