@@ -102,6 +102,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
+use App\Http\Controllers\UserFollowersYouKnowController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
@@ -263,6 +264,10 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Followers the viewer knows...
+    Route::get('@{user:username}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
+        ->name('user-followers-you-know.index');
 
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');

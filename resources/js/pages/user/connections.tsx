@@ -2,6 +2,7 @@ import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
@@ -35,11 +36,16 @@ export default function Connections({
     users,
 }: {
     user: User;
-    type: 'following' | 'followers';
+    type: 'following' | 'followers' | 'followers_you_know';
     users: CursorPaginated<Connection>;
 }) {
     const { auth } = usePage().props;
-    const title = type === 'following' ? 'Following' : 'Followers';
+    const title = {
+        followers: 'Followers',
+        followers_you_know: 'Followers you know',
+        following: 'Following',
+    }[type];
+    const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
 
     return (
         <>
@@ -69,6 +75,18 @@ export default function Connections({
                             href: UserFollowersController.index(user),
                             isActive: type === 'followers',
                         },
+                        ...(knowsFollowers
+                            ? [
+                                  {
+                                      title: 'Followers you know',
+                                      shortTitle: 'You know',
+                                      href: UserFollowersYouKnowController.index(
+                                          user,
+                                      ),
+                                      isActive: type === 'followers_you_know',
+                                  },
+                              ]
+                            : []),
                         {
                             title: 'Following',
                             href: UserFollowingController.index(user),
@@ -80,10 +98,20 @@ export default function Connections({
 
             {users.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed command={`fatal: no ${type} yet`}>
-                        {type === 'following'
-                            ? `@${user.username} isn't following anyone yet.`
-                            : `Nobody is following @${user.username} yet.`}
+                    <EmptyFeed
+                        command={
+                            type === 'followers_you_know'
+                                ? 'fatal: no followers you know'
+                                : `fatal: no ${type} yet`
+                        }
+                    >
+                        {
+                            {
+                                followers: `Nobody is following @${user.username} yet.`,
+                                followers_you_know: `Nobody you follow is following @${user.username} yet.`,
+                                following: `@${user.username} isn't following anyone yet.`,
+                            }[type]
+                        }
                     </EmptyFeed>
                 </div>
             ) : (
