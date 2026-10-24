@@ -7,13 +7,17 @@ import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits, suggestedQueries } from '@/lib/commit-search';
+import {
+    SearchUnavailable,
+    searchCommits,
+    suggestedQueries,
+} from '@/lib/commit-search';
 import { laneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const skeletonDelay = 300;
 
-type Results = { term: string; commits: Commit[] };
+type Results = { term: string; commits: Commit[]; isUnavailable?: boolean };
 
 export default function Index({ query }: { query: string }) {
     const userId = usePage().props.auth.user?.id ?? null;
@@ -118,9 +122,13 @@ function useCommitSearch(query: string) {
 
         searchCommits(query, undefined, controller.signal)
             .then((commits) => setResults({ term: query, commits }))
-            .catch(() => {
+            .catch((error: unknown) => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    setResults({
+                        term: query,
+                        commits: [],
+                        isUnavailable: error instanceof SearchUnavailable,
+                    });
                 }
             })
             .finally(() => {
@@ -156,13 +164,22 @@ function SearchResults({
                 <h2 id="search-results" className="font-semibold">
                     Most relevant commits
                 </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
+                {!results.isUnavailable && (
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        {results.commits.length}{' '}
+                        {results.commits.length === 1 ? 'match' : 'matches'}
+                    </span>
+                )}
             </div>
 
-            {results.commits.length === 0 ? (
+            {results.isUnavailable ? (
+                <div className="px-6 py-16 text-center sm:px-12">
+                    <EmptyFeed command="error: commit search is down">
+                        It can't read your search right now. Try again in a
+                        moment.
+                    </EmptyFeed>
+                </div>
+            ) : results.commits.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
                         command={`fatal: nothing close to '${results.term}'`}

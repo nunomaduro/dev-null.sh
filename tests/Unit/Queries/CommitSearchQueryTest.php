@@ -7,6 +7,8 @@ use App\Models\Poll;
 use App\Models\User;
 use App\Queries\CommitSearchQuery;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Exceptions\EmbeddingsCountMismatchException;
@@ -200,4 +202,19 @@ it('does not cache a missing query embedding as a successful search', function (
     expect(fn () => $query->get('a query', null))->toThrow(EmbeddingsCountMismatchException::class);
     expect($query->get('a query', null))->toBeEmpty();
     Http::assertSentCount(2);
+});
+
+it('keeps every candidate when the decision model cannot be reached', function (): void {
+    Exceptions::fake();
+    Http::fake([
+        'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
+        'api.openai.com/v1/decisions' => Http::response(status: 500),
+    ]);
+
+    $close = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $far = Commit::factory()->create(['embedding' => embeddingVector(1)]);
+
+    expect(resolve(CommitSearchQuery::class)->get('a query', null)->pluck('id')->all())->toBe([$close->id, $far->id]);
+
+    Exceptions::assertReported(RequestException::class);
 });

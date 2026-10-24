@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -80,4 +82,16 @@ it('asks guests to slow down after 15 searches a minute', function (): void {
         ->assertTooManyRequests()
         ->assertHeader('Retry-After', '60')
         ->assertExactJson(['message' => 'Slow down: too many searches. Give it a few seconds.']);
+});
+
+it('says the search is down, rather than that nothing matched, when OpenAI cannot read the query', function (): void {
+    Exceptions::fake();
+    Http::fake(['api.openai.com/v1/embeddings' => Http::response(status: 500)]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    $this->getJson('/search/commits?q=feature')
+        ->assertServiceUnavailable()
+        ->assertExactJson(['message' => 'Commit search is unavailable right now. Try again in a moment.']);
+
+    Exceptions::assertReported(RequestException::class);
 });

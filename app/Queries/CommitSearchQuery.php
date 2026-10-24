@@ -10,6 +10,7 @@ use App\Services\OpenAI;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Enums\Lab;
+use Throwable;
 
 final readonly class CommitSearchQuery
 {
@@ -69,7 +70,8 @@ final readonly class CommitSearchQuery
     /**
      * The vector search is generous: the nearest by meaning can include posts that merely share a word with the term.
      * The decision model reads the term against each candidate and keeps meaningful connections to it, so the
-     * caller may get fewer than it asked for.
+     * caller may get fewer than it asked for. When it can't be reached, the candidates are kept as they are, since the
+     * nearest by meaning are still worth showing.
      *
      * @param  Collection<int, Commit>  $candidates
      * @return Collection<int, Commit>
@@ -80,7 +82,13 @@ final readonly class CommitSearchQuery
             return $candidates;
         }
 
-        $relevant = $this->openAI->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()));
+        try {
+            $relevant = $this->openAI->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()));
+        } catch (Throwable $throwable) {
+            report($throwable);
+
+            return $candidates;
+        }
 
         return $candidates
             ->filter(fn (Commit $commit, int $index): bool => $relevant[$index] ?? true)

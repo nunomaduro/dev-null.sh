@@ -41,6 +41,7 @@ export default defineConfig({
             'tests/Unit/StagedRail.test.tsx',
             'tests/Unit/ComposerPreview.test.tsx',
             'tests/Unit/UseNow.test.tsx',
+            'tests/Unit/CommitSearch.test.tsx',
             'tests/Unit/LinkEmbedHeight.test.tsx',
             'tests/Unit/CommitRules.test.tsx',
             'tests/Unit/TimeoutRefusals.test.tsx',

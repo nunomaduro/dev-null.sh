@@ -11,6 +11,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Throwable;
 
 final class SearchCommits implements Tool
 {
@@ -27,8 +28,15 @@ final class SearchCommits implements Tool
             return 'Search budget exhausted. Answer using the evidence already retrieved.';
         }
 
-        return resolve(CommitSearchQuery::class)
-            ->get(mb_substr($request->string('query')->value(), 0, 200), null, limit: 5)
+        try {
+            $commits = resolve(CommitSearchQuery::class)->get(mb_substr($request->string('query')->value(), 0, 200), null, limit: 5);
+        } catch (Throwable $throwable) {
+            report($throwable);
+
+            return 'Search is unavailable right now. Answer without it.';
+        }
+
+        return $commits
             ->filter(fn (Commit $commit): bool => $commit->user instanceof User)
             ->map(fn (Commit $commit): array => [
                 'author' => $commit->user?->username,

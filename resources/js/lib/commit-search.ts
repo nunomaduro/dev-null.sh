@@ -15,6 +15,11 @@ export const suggestedQueries = [
  */
 export class TooManySearches extends Error {}
 
+/**
+ * Thrown when the search itself is down, so the client can say so instead of claiming nothing matched.
+ */
+export class SearchUnavailable extends Error {}
+
 export function searchCommits(
     term: string,
     limit?: number,
@@ -35,6 +40,10 @@ export function searchCommits(
         .then((response) => {
             if (response.status === 429) {
                 throw new TooManySearches();
+            }
+
+            if (response.status === 503) {
+                throw new SearchUnavailable();
             }
 
             if (!response.ok) {
