@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Laravel\Passport\Client;
+use Laravel\Passport\Passport;
+use Laravel\Passport\Scope;
+use Symfony\Component\HttpFoundation\Response;
 use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
@@ -26,6 +30,8 @@ final class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
         $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
+
+        Passport::$deviceCodeGrantEnabled = false;
     }
 
     public function boot(): void
@@ -33,6 +39,28 @@ final class AppServiceProvider extends ServiceProvider
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
+        $this->bootPassport();
+    }
+
+    /**
+     * Every visit to the consent page issues a new auth token, so the page must not reload itself (as it would for
+     * deferred shared props): the form would then hold a token the session no longer knows.
+     */
+    private function bootPassport(): void
+    {
+        Passport::authorizationView(function (array $parameters): Response {
+            /** @var array{client: Client, scopes: list<Scope>, authToken: string, request: Request} $parameters */
+            return Inertia::render('oauth/authorize', [
+                'suggestedUsers' => null,
+                'client' => $parameters['client']->name,
+                'scopes' => array_map(fn (Scope $scope): string => $scope->description, $parameters['scopes']),
+                'authToken' => $parameters['authToken'],
+                'state' => $parameters['request']->input('state'),
+                'clientId' => $parameters['client']->getKey(),
+                'csrfToken' => csrf_token(),
+                'url' => route('passport.authorizations.approve'),
+            ])->toResponse($parameters['request']);
+        });
     }
 
     private function bootExceptionHandling(): void
@@ -68,6 +96,8 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
         // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the
