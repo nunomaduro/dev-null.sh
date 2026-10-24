@@ -6,6 +6,7 @@
     },
     "include": [
         "Unit/**/*.test.ts",
+        "Unit/CommitPageShortcuts.test.tsx",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",

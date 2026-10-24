@@ -46,11 +46,12 @@ export function focusCommit(commit: HTMLElement): void {
  * A deleted commit's actions are inert, which stops pointers and focus but not a scripted click.
  */
 function focusedCommitAction(key: string): HTMLButtonElement | null {
-    const action = document.activeElement
-        ?.closest('[data-commit]')
-        ?.querySelector<HTMLButtonElement>(
-            `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
-        );
+    const action = (
+        document.activeElement?.closest('[data-commit]') ??
+        document.querySelector('[data-focused-commit]')
+    )?.querySelector<HTMLButtonElement>(
+        `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
+    );
 
     return action && !action.closest('[inert]') ? action : null;
 }
