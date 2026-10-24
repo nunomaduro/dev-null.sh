@@ -8,9 +8,10 @@ it('accepts links to a single video', function (string $url): void {
     $youTube = resolve(YouTube::class);
 
     expect($youTube->accepts($url))->toBeTrue()
-        ->and($youTube->stream($url)->toArray())->toBe([
+        ->and($youTube->stream($url, now()->addHour())->toArray())->toMatchArray([
             'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
             'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
+            'platform' => 'youtube',
         ]);
 })->with([
     'watch' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',

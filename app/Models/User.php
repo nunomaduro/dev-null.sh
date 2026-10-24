@@ -559,8 +559,10 @@ final class User extends Authenticatable
      */
     public function liveStream(): ?LiveStream
     {
-        return $this->live_ends_at?->isFuture() === true
-            ? $this->live_platform?->driver()->stream((string) $this->live_url)
+        $endsAt = $this->live_ends_at;
+
+        return $endsAt?->isFuture() === true
+            ? $this->live_platform?->driver()->stream((string) $this->live_url, $endsAt)
             : null;
     }
 

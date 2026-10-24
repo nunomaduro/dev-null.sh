@@ -8,6 +8,18 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant in-place (&:is(:root[data-view-transition] *));
 
+/* The live ring's stroke: a disc painted with the conic `--live-ring` and hollowed out by a mask, so the gap before the
+   avatar shows whatever surface it sits on. The mask is round, so the ring can rotate as a whole on the compositor. */
+@utility live-ring {
+    border-radius: calc(infinity * 1px);
+    background: var(--live-ring);
+    mask: radial-gradient(
+        farthest-side,
+        transparent calc(100% - 2.5px),
+        black calc(100% - 2px)
+    );
+}
+
 /* Keep the fingerprint's wrapping, selection and accessible text while revealing its tiny secret. */
 .certificate-hash {
     position: relative;
@@ -257,6 +269,14 @@
     --animate-commit-in: commit-in 300ms linear both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
+    /* Whoever is live turns slowly enough to read as "on air" rather than "loading". */
+    --animate-live-ring: live-ring 9s linear infinite;
+
+    @keyframes live-ring {
+        to {
+            transform: rotate(360deg);
+        }
+    }
 
     @keyframes star-pop {
         0% {

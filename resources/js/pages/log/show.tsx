@@ -14,6 +14,7 @@ import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog'
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
+import { OrbitRail } from '@/components/orbit-rail/orbit-rail';
 import { PageTabs } from '@/components/page-tabs';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
@@ -549,6 +550,8 @@ export default function Show({
                     ]}
                 />
             </div>
+
+            {user !== null && <OrbitRail />}
 
             {user !== null && (
                 <div ref={setComposer}>

@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\Services\EmbedProvider;
 use App\Dto\Embed;
+use Generator;
 use Illuminate\Contracts\Container\Container;
 use Uri\WhatWg\Url;
 
@@ -36,21 +37,21 @@ final readonly class Embeds
     }
 
     /**
-     * @return list<EmbedProvider>
+     * Made one at a time, so a link the first providers play does not build the rest. Live streams and link cards ask
+     * for an embed for every one they show.
+     *
+     * @return Generator<int, EmbedProvider>
      */
-    private function providers(): array
+    private function providers(): Generator
     {
         $only = config()->array('embeds.only');
-        $providers = [];
 
         foreach (config()->array('embeds.providers') as $key => $class) {
             $provider = is_string($class) && ($only === [] || in_array($key, $only, true)) ? $this->container->make($class) : null;
 
             if ($provider instanceof EmbedProvider) {
-                $providers[] = $provider;
+                yield $provider;
             }
         }
-
-        return $providers;
     }
 }

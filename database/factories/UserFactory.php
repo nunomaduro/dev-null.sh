@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\LivePlatform;
 use App\Enums\ModerationReason;
 use App\Enums\RemotesFrom;
 use App\Models\Ban;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -65,6 +67,21 @@ final class UserFactory extends Factory
         ])->afterCreating(function (User $user) use ($reason): void {
             Ban::factory()->create(['github_id' => $user->github_id, 'reason' => $reason]);
         });
+    }
+
+    /**
+     * Streaming until the given time, two hours from now by default, the way going live stores it.
+     */
+    public function live(LivePlatform $platform = LivePlatform::YouTube, ?CarbonInterface $until = null): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'live_platform' => $platform,
+            'live_url' => match ($platform) {
+                LivePlatform::YouTube => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                LivePlatform::Twitch => 'https://www.twitch.tv/octocat',
+            },
+            'live_ends_at' => $until ?? now()->addHours(2),
+        ]);
     }
 
     public function notOnboarded(): self

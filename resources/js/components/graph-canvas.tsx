@@ -328,6 +328,46 @@ function translationOf(element: HTMLElement): Point {
     return { x: px(x, element.offsetWidth), y: px(y, element.offsetHeight) };
 }
 
+/** Room around a cut-out, for the surface-colored ring a pill draws around itself. */
+const cutoutGap = 2;
+
+/**
+ * The `[data-graph-cutout]` boxes inside a node, placed around its layout `centre` in canvas pixels. Measured against
+ * the node's own box, so a node still scaling in reports them at their final size.
+ */
+function nodeCutouts(
+    element: HTMLElement,
+    centre: Point,
+): NonNullable<GraphNode['cutouts']> {
+    const cuts = element.querySelectorAll<HTMLElement>('[data-graph-cutout]');
+
+    if (cuts.length === 0) {
+        return [];
+    }
+
+    const node = element.getBoundingClientRect();
+    const scale = node.width > 0 ? element.offsetWidth / node.width : 1;
+
+    return [...cuts].map((cut) => {
+        const rect = cut.getBoundingClientRect();
+
+        return {
+            x: snap(
+                centre.x +
+                    (rect.left - node.left - node.width / 2) * scale -
+                    cutoutGap,
+            ),
+            y: snap(
+                centre.y +
+                    (rect.top - node.top - node.height / 2) * scale -
+                    cutoutGap,
+            ),
+            width: snap(rect.width * scale + cutoutGap * 2),
+            height: snap(rect.height * scale + cutoutGap * 2),
+        };
+    });
+}
+
 function snap(value: number): number {
     const ratio = window.devicePixelRatio || 1;
 
@@ -420,6 +460,10 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
+                const cutouts = nodeCutouts(element, {
+                    x: centre.x - box.left,
+                    y: centre.y - box.top,
+                });
 
                 return {
                     id: spec.id,
@@ -433,6 +477,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     y: snap(centre.y - box.top),
                     // The layout width, as a node scaling in would otherwise keep the radius it had mid-animation.
                     radius: element.offsetWidth / 2 + (spec.ring ?? 0),
+                    ...(cutouts.length > 0 ? { cutouts } : {}),
                 };
             });
 
@@ -659,6 +704,21 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     height={size.height}
                                     fill="white"
                                 />
+                                {nodes.flatMap((node) =>
+                                    (node.cutouts ?? []).map((cut, index) => (
+                                        <rect
+                                            key={`${node.id}-${index}`}
+                                            {...cut}
+                                            rx={cutoutGap * 2}
+                                            fill="black"
+                                            clipPath={clipOf(
+                                                leaving.findIndex((row) =>
+                                                    row.ids.has(node.id),
+                                                ),
+                                            )}
+                                        />
+                                    )),
+                                )}
                                 {nodes.map((node) => (
                                     <circle
                                         key={node.id}

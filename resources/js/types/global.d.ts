@@ -1,5 +1,6 @@
-import type { Auth, SuggestedUser, User } from '@/types/auth';
+import type { Auth, SuggestedUser } from '@/types/auth';
 import type { Commit } from '@/types/commit';
+import type { LiveFollowingUser } from '@/types/live';
 import type {
     CommittedFlash,
     DeletedFlash,
@@ -30,7 +31,7 @@ declare module '@inertiajs/core' {
             dimsLanes: boolean;
             repliesPerPage: number;
             suggestedUsers?: SuggestedUser[];
-            liveFollowing?: User[];
+            liveFollowing?: LiveFollowingUser[];
             [key: string]: unknown;
         };
     }

@@ -4,6 +4,7 @@ export type * from './auth';
 export type * from './commit';
 export type * from './conversation';
 export type * from './device';
+export type * from './live';
 export type * from './log';
 export type * from './navigation';
 export type * from './notification';

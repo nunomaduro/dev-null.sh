@@ -8,11 +8,7 @@ use App\Models\User;
 
 function liveUser(): User
 {
-    return User::factory()->create([
-        'live_platform' => LivePlatform::YouTube,
-        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        'live_ends_at' => now()->addHours(2),
-    ]);
+    return User::factory()->live()->create();
 }
 
 it('goes live with a YouTube stream for a few hours', function (string $url): void {
@@ -32,6 +28,16 @@ it('goes live with a YouTube stream for a few hours', function (string $url): vo
             ->where('user.live', [
                 'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
                 'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
+                'platform' => 'youtube',
+                'ends_at' => now()->addHours(3)->toIso8601ZuluString(),
+                'embed' => [
+                    'provider' => 'YouTube',
+                    'kind' => 'video',
+                    'src' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+                    'aspect_ratio' => '16 / 9',
+                    'height' => null,
+                    'poster' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+                ],
             ]));
 })->with([
     'live link' => 'https://www.youtube.com/live/dQw4w9WgXcQ?si=share',
@@ -55,13 +61,37 @@ it('goes live with a Twitch stream for a few hours', function (string $url): voi
         ->assertInertia(fn ($page) => $page
             ->where('user.live', [
                 'url' => 'https://www.twitch.tv/octocat',
-                'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+                'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-640x360.jpg',
+                'platform' => 'twitch',
+                'ends_at' => now()->addHours(3)->toIso8601ZuluString(),
+                'embed' => [
+                    'provider' => 'Twitch',
+                    'kind' => 'video',
+                    'src' => 'https://player.twitch.tv/?channel=octocat&parent='.parse_url(config()->string('app.url'), PHP_URL_HOST).'&autoplay=true',
+                    'aspect_ratio' => '16 / 9',
+                    'height' => null,
+                    'poster' => null,
+                ],
             ]));
 })->with([
     'channel link' => 'https://www.twitch.tv/octocat',
     'channel without www' => 'https://twitch.tv/octocat',
     'mobile link' => 'https://m.twitch.tv/octocat',
 ]);
+
+it('only links out to the stream when it may not play inline', function (array $embeds, LivePlatform $platform): void {
+    config(['embeds' => [...config()->array('embeds'), ...$embeds]]);
+    $user = User::factory()->live($platform)->create();
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('user.live.platform', $platform->value)
+            ->where('user.live.url', $platform === LivePlatform::YouTube ? 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' : 'https://www.twitch.tv/octocat')
+            ->where('user.live.embed', null));
+})->with([
+    'embeds off' => [['enabled' => false]],
+    'platform not allowed' => [['only' => ['vimeo']]],
+])->with([LivePlatform::YouTube, LivePlatform::Twitch]);
 
 it('shows the live marker on their commits in the log', function (): void {
     $user = liveUser();

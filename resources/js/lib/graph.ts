@@ -15,6 +15,8 @@ export type GraphNode = Point & {
     dimmed?: boolean;
     /** On its way out, like an end dot scaling out as the thread goes on below it: linked to nothing, it only keeps its cut-out. */
     isLeaving?: boolean;
+    /** Boxes the node carries past its ring, such as a LIVE pill on its edge, which lines pass behind too. */
+    cutouts?: (Point & { width: number; height: number })[];
 };
 
 export type GraphEdge = {

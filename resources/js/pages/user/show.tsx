@@ -22,10 +22,8 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { EditProfileMenu } from '@/components/edit-profile-menu';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
-import {
-    LiveAvatarMarker,
-    LiveStreamTrigger,
-} from '@/components/live-stream-card';
+import { LiveStreamTrigger } from '@/components/live-stream-card';
+import { LiveAvatar } from '@/components/live/live-avatar';
 import { LocalTime } from '@/components/local-time';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
@@ -42,6 +40,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import { platformName } from '@/lib/live';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
@@ -138,16 +137,12 @@ export default function Show({
                                 href={user.live.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
-                                className="relative flex rounded-full"
+                                aria-label={`Watch ${user.name} live on ${platformName(user.live.platform)}`}
+                                // The live ring takes the space the lane ring's offset leaves around a still avatar.
+                                className="-m-1 flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
-                                <UserAvatar
-                                    user={user}
-                                    className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
-                                    pixels={160}
-                                />
-                                <LiveAvatarMarker className="-bottom-2.5" />
+                                <LiveAvatar user={user} size={80} />
                             </a>
                         </LiveStreamTrigger>
                     ) : (

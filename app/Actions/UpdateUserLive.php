@@ -11,10 +11,12 @@ final readonly class UpdateUserLive
 {
     public function handle(User $user, LivePlatform $platform, string $url, int $hours): void
     {
+        $endsAt = now()->addHours($hours);
+
         $user->update([
             'live_platform' => $platform,
-            'live_url' => $platform->driver()->stream($url)->url,
-            'live_ends_at' => now()->addHours($hours),
+            'live_url' => $platform->driver()->stream($url, $endsAt)->url,
+            'live_ends_at' => $endsAt,
         ]);
     }
 }

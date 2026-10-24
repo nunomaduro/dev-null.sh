@@ -109,11 +109,12 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
-                ? resolve(LiveFollowingQuery::class)->get($user)
-                : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
+            // Guests follow nobody. The log's poll reloads just this, and a closure only runs when it is asked for.
+            ...$user instanceof User && $hasAside ? [
+                'liveFollowing' => fn (): Collection => resolve(LiveFollowingQuery::class)->get($user),
+            ] : [],
             // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [
                 'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),

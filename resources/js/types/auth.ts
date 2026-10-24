@@ -1,15 +1,11 @@
 import type { RemotesFrom } from '@/types/conversation';
+import type { LiveStream } from '@/types/live';
 import type { Log } from '@/types/log';
 
 /**
  * A lane from the palette, or a custom hex color.
  */
 export type Lane = number | string;
-
-export type LiveStream = {
-    url: string;
-    thumbnail_url: string;
-};
 
 export type User = {
     id: string;

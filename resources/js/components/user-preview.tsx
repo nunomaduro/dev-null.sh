@@ -13,17 +13,15 @@ import {
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
-import {
-    LiveAvatarMarker,
-    LiveStreamCard,
-} from '@/components/live-stream-card';
+import { LiveStreamCard } from '@/components/live-stream-card';
+import { LiveAvatar } from '@/components/live/live-avatar';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { cn, laneColor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
@@ -396,16 +394,19 @@ function UserPreviewContent({
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
             <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="relative rounded-full">
-                    <UserAvatar
-                        user={user}
-                        className={cn(
-                            'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
-                            { 'ring-red-600': user.live },
-                        )}
-                    />
-                    {user.live && <LiveAvatarMarker className="ring-popover" />}
-                </Link>
+                {user.live ? (
+                    // The live ring takes the space the lane ring's offset leaves around a still avatar.
+                    <Link href={show(user)} className="-m-1 flex rounded-full">
+                        <LiveAvatar user={user} size={56} surface="popover" />
+                    </Link>
+                ) : (
+                    <Link href={show(user)} className="rounded-full">
+                        <UserAvatar
+                            user={user}
+                            className="size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover"
+                        />
+                    </Link>
+                )}
 
                 {!isCurrentUser &&
                     (data ? (
