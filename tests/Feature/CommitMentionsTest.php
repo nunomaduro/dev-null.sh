@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\NotificationType;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 it('keeps the original mention recipient and profile after a rename and handle reuse', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     config(['app.admins' => ['moderator']]);
 
     $author = User::factory()->create();
@@ -48,6 +51,7 @@ it('keeps the original mention recipient and profile after a rename and handle r
 });
 
 it('does not bind an unknown mention to an account created before approval', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     config(['app.admins' => ['moderator']]);
 
     $author = User::factory()->create();
@@ -77,6 +81,7 @@ it('only captures mentions in prose', function (): void {
 });
 
 it('ignores deleted recipients at approval and returns 404 for their mention links', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     config(['app.admins' => ['moderator']]);
 
     $author = User::factory()->create();

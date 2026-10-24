@@ -8,6 +8,7 @@ use App\Dto\NewPoll;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -59,6 +60,7 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $isRootCommit = ! $parent instanceof Commit;
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
@@ -78,7 +80,7 @@ final readonly class CreateCommit
                 $this->createPoll($commit, $poll);
             }
 
-            if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
+            if ((! $isRootCommit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
                 $this->updateCommitHotScores->handle([$commit->id]);
             }
 
@@ -112,6 +114,10 @@ final readonly class CreateCommit
 
             if ($commit->body !== '') {
                 dispatch(new EmbedCommit($commit))->afterCommit();
+            }
+
+            if ($isRootCommit && $commit->body !== '') {
+                dispatch(new ClassifyCommitTopics([$commit->id]))->afterCommit();
             }
 
             return $commit;

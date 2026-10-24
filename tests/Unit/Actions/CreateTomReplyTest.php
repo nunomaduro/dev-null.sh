@@ -8,6 +8,7 @@ use App\Actions\CreateTomReply;
 use App\Actions\UpdateCommitStatuses;
 use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -49,7 +50,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
 });
 
 it('queues a mention only after approval and ignores code mentions', function (): void {
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, ClassifyCommitTopics::class]);
     User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
     $commit = resolve(CreateCommit::class)->handle($user, '@ToM how did this start?');
@@ -113,7 +114,7 @@ it('does not answer deeper replies without a mention', function (bool $approved)
 
 it('queues Tom replies and surfaces provider failures instead of silently skipping them', function (bool $approved, string $provider): void {
     config(['ai.providers.'.$provider.'.key' => null]);
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, ClassifyCommitTopics::class]);
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(['answers' => []]),
         'opencode.ai/zen/v1/chat/completions' => Http::response([], 401),
@@ -245,7 +246,7 @@ it('retries failed or blank responses without retaining provider content', funct
 ]);
 
 it('queues and answers mentions of the reserved tom handle after approval', function (bool $approved): void {
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, ClassifyCommitTopics::class]);
     Tom::fake(['Still here. :-D'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
@@ -267,7 +268,7 @@ it('queues and answers mentions of the reserved tom handle after approval', func
 })->with([true, false]);
 
 it('still answers a captured mention when tom is renamed before approval', function (): void {
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, ClassifyCommitTopics::class]);
     Tom::fake(['I remember.'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
@@ -284,7 +285,7 @@ it('still answers a captured mention when tom is renamed before approval', funct
 });
 
 it('does not queue or answer a mention of the real tom', function (bool $approved): void {
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, ClassifyCommitTopics::class]);
     Tom::fake()->preventStrayPrompts();
     User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     User::factory()->create(['username' => 'tom']);

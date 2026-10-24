@@ -7,11 +7,12 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Topic;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 test('to array', function (): void {
-    $commit = Commit::factory()->create()->refresh();
+    $commit = Commit::factory()->hasAttached(Topic::factory())->create(['topic_decision' => true])->refresh()->load('topics');
 
     expect(array_keys($commit->toArray()))
         ->toBe([

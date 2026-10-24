@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Poll;
+use App\Models\Topic;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -73,7 +74,7 @@ it('keeps the images of a commit deleted again within its new undo window', func
 });
 
 it('erases the content once the undo window has closed', function (): void {
-    $commit = Commit::factory()->create(['body' => 'Hello @taylor', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
+    $commit = Commit::factory()->create(['body' => 'Hello @taylor', 'mentions' => ['taylor'], 'topic_decision' => true, 'link_preview_id' => LinkPreview::factory()]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();
@@ -84,6 +85,7 @@ it('erases the content once the undo window has closed', function (): void {
     expect($commit)
         ->body->toBe('')
         ->mentions->toBeNull()
+        ->topic_decision->toBeNull()
         ->link_preview_id->toBeNull()
         ->user_id->not->toBeNull();
     $this->assertModelMissing($poll);
@@ -125,4 +127,39 @@ it('does nothing for a commit that is gone', function (): void {
     resolve(DeleteCommitContent::class)->handle($commit);
 
     expect(CommitImage::query()->count())->toBe(0);
+});
+
+it('erases topic associations and newly orphaned labels but retains labels used by restorable commits', function (): void {
+    $commit = Commit::factory()->create(['topic_decision' => true]);
+    $other = Commit::factory()->create();
+    $sole = Topic::factory()->create();
+    $shared = Topic::factory()->create();
+    $unrelated = Topic::factory()->create();
+    $commit->topics()->attach([$sole->id, $shared->id]);
+    $other->topics()->attach($shared);
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(30)->seconds();
+    resolve(DeleteCommit::class)->handle($other);
+
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $commit->id]);
+    $this->assertModelMissing($sole);
+    $this->assertModelExists($shared);
+    $this->assertModelExists($unrelated);
+    expect($other->topics()->pluck('topics.id')->all())->toBe([$shared->id])
+        ->and(Commit::withTrashed()->findOrFail($commit->id)->topic_decision)->toBeNull();
+});
+
+it('retains topic labels and completion throughout the undo window', function (): void {
+    $commit = Commit::factory()->create(['topic_decision' => true]);
+    $topic = Topic::factory()->create();
+    $commit->topics()->attach($topic);
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(29)->seconds();
+
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    expect($commit->topics()->pluck('topics.id')->all())->toBe([$topic->id])
+        ->and(Commit::withTrashed()->findOrFail($commit->id)->topic_decision)->toBeTrue();
 });

@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
 it('may approve a commit', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     $admin = User::factory()->create(['username' => 'admin']);
     $commit = Commit::factory()->pending()->create();
 

@@ -201,7 +201,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
-    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
+    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3, 'topic_decision' => true]);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -233,6 +233,8 @@ it('exports all the signed-in users commits including replies, deleted ones, and
             'expires_at' => now()->addDays(7)->getTimestamp(),
         ],
         'status' => 'approved',
+        'topic_decision' => true,
+        'topics' => [],
         'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),

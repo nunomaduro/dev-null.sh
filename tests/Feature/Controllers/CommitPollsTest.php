@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -67,7 +68,7 @@ it('keeps a poll when its link card is chosen or removed', function (?string $li
 })->with(['chosen' => 'https://example.com/second', 'removed' => null]);
 
 it('keeps link card choices on quotes through approval without exposing quoted votes', function (?string $linkPreviewUrl): void {
-    Queue::fake([UnfurlLink::class]);
+    Queue::fake([ClassifyCommitTopics::class, UnfurlLink::class]);
 
     $user = User::factory()->create();
     $quotedAuthor = User::factory()->create(['username' => 'quoted-writer']);

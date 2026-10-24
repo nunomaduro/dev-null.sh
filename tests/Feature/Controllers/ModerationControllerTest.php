@@ -6,6 +6,7 @@ use App\Actions\CreateCommitTranslation;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
@@ -91,6 +92,8 @@ it('lets moderators detect and translate pending commits without approving them'
 });
 
 it('keeps ai suggestions private and notifies the quoted author only after moderator approval', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     config(['ai.providers.openai.key' => 'sk-test']);
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(['results' => [[
@@ -219,6 +222,8 @@ it('includes the link previews of pending commits', function (): void {
 });
 
 it('may approve many commits', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $admin = User::factory()->create(['username' => 'admin']);
     $commits = Commit::factory()->pending()->count(2)->create();
     $other = Commit::factory()->pending()->create();

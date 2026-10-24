@@ -7,6 +7,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 it('may approve many commits', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     $commits = Commit::factory()->pending()->count(2)->create();
     $other = Commit::factory()->pending()->create();
 
@@ -60,6 +62,7 @@ it('queues direct replies to Tom in bulk without per-reply queries', function ()
 });
 
 it('may only update the commits that are still pending', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     $pending = Commit::factory()->pending()->create();
     $rejected = Commit::factory()->rejected()->create();
 
@@ -85,6 +88,7 @@ it('notifies the parent authors of the approved replies', function (): void {
 });
 
 it('notifies the quoted authors of the approved quotes', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     $quoted = Commit::factory()->create();
     $quotes = Commit::factory()->pending()->for($quoted, 'quotedCommit')->count(2)->create();
     $rejected = Commit::factory()->rejected()->for($quoted, 'quotedCommit')->create();
@@ -108,6 +112,7 @@ it('lifts the thread when a reply is approved', function (): void {
 });
 
 it('lifts the quoted thread when a quote is approved', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
     $commit = Commit::factory()->create();
     $quote = Commit::factory()->pending()->for($commit, 'quotedCommit')->create();
 
@@ -115,4 +120,18 @@ it('lifts the quoted thread when a quote is approved', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
+});
+
+it('queues undecided roots on approval but not replies empty posts or completed decisions', function (): void {
+    Queue::fake([ClassifyCommitTopics::class, CheckUserLevel::class]);
+    $unknown = Commit::factory()->pending()->create();
+    $interesting = Commit::factory()->pending()->create(['topic_decision' => true]);
+    $reply = Commit::factory()->pending()->create(['parent_id' => $unknown->id]);
+    $empty = Commit::factory()->pending()->create(['body' => '']);
+    $negative = Commit::factory()->pending()->create(['topic_decision' => false]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$unknown->id, $interesting->id, $reply->id, $empty->id, $negative->id], CommitStatus::Approved);
+
+    Queue::assertPushed(ClassifyCommitTopics::class, 1);
+    Queue::assertPushed(ClassifyCommitTopics::class, fn (ClassifyCommitTopics $job): bool => $job->commitIds === [$unknown->id]);
 });
