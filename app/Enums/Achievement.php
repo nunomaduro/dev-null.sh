@@ -18,6 +18,7 @@ enum Achievement: string
     case Pipe = 'pipe';
     case AuthorizedKeys = 'authorized_keys';
     case SweetTooth = 'sweet_tooth';
+    case Contributor = 'contributor';
     case Luddite = 'luddite';
     case ShellShocked = 'shell_shocked';
     case SuperSaiyan = 'super_saiyan';
@@ -37,6 +38,7 @@ enum Achievement: string
             self::Pipe => 'pipe',
             self::AuthorizedKeys => 'authorized_keys',
             self::SweetTooth => 'sweet tooth',
+            self::Contributor => 'contributor',
             self::Luddite => 'luddite',
             self::ShellShocked => 'shell shocked',
             self::SuperSaiyan => 'super-saiyan',
@@ -58,6 +60,7 @@ enum Achievement: string
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
             self::SweetTooth => 'Received 100 pastéis across your account.',
+            self::Contributor => 'Contributed to the /dev/null source code.',
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
             self::ShellShocked => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
             self::SuperSaiyan => 'Y—your follower count. It... it’s over 9000!!!1!',
@@ -79,6 +82,7 @@ enum Achievement: string
             self::Pipe => 'git-merge',
             self::AuthorizedKeys => 'key',
             self::SweetTooth => 'cookie',
+            self::Contributor => 'git-pull-request',
             self::Luddite => 'bot-off',
             self::ShellShocked => 'bomb',
             self::SuperSaiyan => 'dragon-ball',
@@ -100,6 +104,7 @@ enum Achievement: string
             self::Pipe => 5,
             self::AuthorizedKeys => 1,
             self::SweetTooth => 100,
+            self::Contributor => 1,
             self::Luddite => 1,
             self::ShellShocked => 1,
             self::SuperSaiyan => 9000,

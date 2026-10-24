@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  */
 final readonly class UserAchievementsQuery
 {
-    public function __construct(private UserStreakQuery $streaks)
+    public function __construct(private UserStreakQuery $streaks, private UpstreamContributionsQuery $contributions)
     {
         //
     }
@@ -87,6 +87,7 @@ final readonly class UserAchievementsQuery
 
         $longestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];
         $hasSshKey = $user->sshKeys()->exists();
+        $upstreamContributions = $this->contributions->countFor($user);
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
         $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
@@ -175,6 +176,10 @@ final readonly class UserAchievementsQuery
             Achievement::SweetTooth->value => [
                 'progress' => min($user->pasteis_received, Achievement::SweetTooth->target()),
                 'target' => Achievement::SweetTooth->target(),
+            ],
+            Achievement::Contributor->value => [
+                'progress' => min($upstreamContributions, Achievement::Contributor->target()),
+                'target' => Achievement::Contributor->target(),
             ],
             Achievement::Luddite->value => [
                 'progress' => $hasUnfollowedTom ? 1 : 0,

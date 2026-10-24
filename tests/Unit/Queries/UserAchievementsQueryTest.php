@@ -9,7 +9,11 @@ use App\Enums\UnixRank;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Queries\UpstreamContributionsQuery;
 use App\Queries\UserAchievementsQuery;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 22)->setTime(12, 0));
@@ -28,7 +32,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(15);
+        ->and($result['badges'])->toHaveCount(16);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -318,6 +322,71 @@ it('does not identify Tom by a mutable username', function (): void {
     $result = resolve(UserAchievementsQuery::class)->get($user, null);
 
     expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse();
+});
+
+it('locks the contributor badge while no contributor counts are cached', function (): void {
+    $user = User::factory()->create();
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', Achievement::Contributor->value))->toMatchArray([
+        'target' => 1,
+        'progress' => 0,
+        'unlocked' => false,
+    ]);
+});
+
+it('unlocks one contributor badge for any positive github contribution count without awarding xp', function (int $contributions, int $progress, bool $unlocked): void {
+    $user = User::factory()->create(['github_id' => '583231']);
+    Cache::forever(UpstreamContributionsQuery::CacheKey, ['583231' => $contributions]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', Achievement::Contributor->value))->toMatchArray([
+        'name' => 'contributor',
+        'description' => 'Contributed to the /dev/null source code.',
+        'icon' => 'git-pull-request',
+        'target' => 1,
+        'progress' => $progress,
+        'unlocked' => $unlocked,
+    ])->and($result['badges'])->toHaveCount(16)
+        ->and($result['xp'])->toBe(0);
+})->with([
+    'no contributions' => [0, 0, false],
+    'one contribution' => [1, 1, true],
+    'five contributions' => [5, 1, true],
+    'twenty-five contributions' => [25, 1, true],
+    'a hundred contributions' => [100, 1, true],
+    'a hundred and fifty contributions' => [150, 1, true],
+]);
+
+it('matches contributor counts by github id, not by a username someone else can take', function (): void {
+    $user = User::factory()->create(['github_id' => '1', 'username' => 'octocat']);
+    Cache::forever(UpstreamContributionsQuery::CacheKey, ['2' => 100]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', Achievement::Contributor->value)['progress'])->toBe(0);
+});
+
+it('matches a numeric github id after the counts come back from a serialized cache store', function (): void {
+    config(['cache.default' => 'database']);
+
+    $user = User::factory()->create(['github_id' => '583231']);
+    Cache::forever(UpstreamContributionsQuery::CacheKey, ['583231' => 7]);
+
+    expect(DB::table('cache')->value('value'))->toBeString()->toContain('i:583231;')
+        ->and(resolve(UpstreamContributionsQuery::class)->countFor($user))->toBe(7);
+});
+
+it('renders the achievements without calling github', function (): void {
+    Http::fake();
+    Cache::forever(UpstreamContributionsQuery::CacheKey, ['583231' => 5]);
+    $user = User::factory()->create(['github_id' => '583231']);
+
+    expect(resolve(UserAchievementsQuery::class)->get($user, $user)['badges'])->toHaveCount(16);
+
+    Http::assertNothingSent();
 });
 
 it('adds the shell shocked reward to activity xp and includes the luddite penalty', function (bool $unfollowedTom, int $xp): void {
