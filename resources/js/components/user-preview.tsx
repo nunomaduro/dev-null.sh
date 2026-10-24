@@ -17,6 +17,7 @@ import {
     LiveAvatarMarker,
     LiveStreamCard,
 } from '@/components/live-stream-card';
+import { LocalTime } from '@/components/local-time';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -479,6 +480,14 @@ function UserPreviewContent({
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
                     <BioText bio={user.bio} />
                 </p>
+            )}
+
+            {user.show_local_time && user.timezone && !data?.isUnavailable && (
+                <LocalTime
+                    as="p"
+                    timeZone={user.timezone}
+                    className="mt-2 text-sm text-muted-foreground"
+                />
             )}
 
             <div className="mt-3 flex gap-4 text-sm">

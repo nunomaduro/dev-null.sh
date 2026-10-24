@@ -172,3 +172,18 @@ it('preserves block privacy for captured mention previews', function (): void {
         ->assertJsonMissingPath('user.commits_count')
         ->assertJsonMissingPath('user.followers_count');
 });
+
+it('includes the shared local time in the user preview', function (): void {
+    User::factory()->create(['username' => 'octocat', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
+
+    $this->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
+});

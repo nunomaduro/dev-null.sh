@@ -1,6 +1,6 @@
 import { Clock } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
-import { formatUtcOffset, formatZonedTime } from '@/lib/utils';
+import { cn, formatUtcOffset, formatZonedTime } from '@/lib/utils';
 
 const MINUTE = 60_000;
 
@@ -21,7 +21,15 @@ function currentMinute(): number {
  * What time it is for someone who chose to share their timezone. It renders nothing on the server, where the
  * current time is not the reader's.
  */
-export function LocalTime({ timeZone }: { timeZone: string }) {
+export function LocalTime({
+    timeZone,
+    as: Element = 'li',
+    className,
+}: {
+    timeZone: string;
+    as?: 'li' | 'p';
+    className?: string;
+}) {
     const minute = useSyncExternalStore(subscribe, currentMinute, () => null);
 
     if (minute === null) {
@@ -31,7 +39,10 @@ export function LocalTime({ timeZone }: { timeZone: string }) {
     const now = new Date(minute);
 
     return (
-        <li className="flex items-center gap-1.5" data-test="local-time">
+        <Element
+            className={cn('flex items-center gap-1.5', className)}
+            data-test="local-time"
+        >
             <Clock className="size-4" />
             <span>
                 <time dateTime={now.toISOString()}>
@@ -39,6 +50,6 @@ export function LocalTime({ timeZone }: { timeZone: string }) {
                 </time>{' '}
                 ({formatUtcOffset(now, timeZone)})
             </span>
-        </li>
+        </Element>
     );
 }
