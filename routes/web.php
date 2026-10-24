@@ -14,6 +14,7 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitIntentController;
 use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
@@ -267,6 +268,9 @@ Route::middleware('auth')->group(function (): void {
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
+
+    // Sharing to /dev/null from elsewhere...
+    Route::get('intent/commit', [CommitIntentController::class, 'show'])->name('commit-intent.show');
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');

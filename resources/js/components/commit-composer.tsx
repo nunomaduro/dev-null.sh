@@ -70,6 +70,9 @@ function bodyProgress(count: number): number {
     return Math.log1p(count) / Math.log1p(maxBodyLength);
 }
 
+// The composer remounts whenever the dialog closes, so each shared text is only added to the draft once.
+const addedIntents = new WeakSet<object>();
+
 function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
@@ -619,13 +622,28 @@ export function CommitComposer({
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 
-    const { committed } = usePage().flash;
+    const { flash } = usePage();
+    const { committed, intent } = flash;
 
     // A deploy reloads the page before onSuccess can drop the draft, so the reloaded page names the commit it became.
     useEffect(() => {
         if (committed !== undefined && isSavedAs(body, committed.body)) {
             drop();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // A link shared to /intent/commit lands here, added after whatever the draft already holds rather than over it.
+    useEffect(() => {
+        if (isInDialog || intent === undefined || addedIntents.has(flash)) {
+            return;
+        }
+
+        addedIntents.add(flash);
+        stash.updateBody(
+            body.trim() === '' ? intent : `${body}\n\n${intent}`,
+        );
+        focusBody(id);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
