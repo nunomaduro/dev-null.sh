@@ -104,7 +104,7 @@ final readonly class CommitTranslations
             'language' => $language,
             'source_language' => $source,
             'source_name' => $source === null ? null : Locale::getDisplayLanguage($source, 'en'),
-            'available' => $source !== $language && $source !== 'und',
+            'available' => $source !== $language && $source !== 'und' && ($source !== null || $commit->user_id !== request()->user()?->id),
             'translated' => $body === null ? null : resolve(CommitBodies::class)->segments($body),
         ];
     }

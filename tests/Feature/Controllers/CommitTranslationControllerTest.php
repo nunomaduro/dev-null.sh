@@ -145,6 +145,22 @@ it('detects unfamiliar posts in the background without translating on a page rea
     CommitTranslator::assertNeverPrompted();
 });
 
+it('offers translation of an undetected post to its readers but not its author', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    $commit = Commit::factory()->create(['body' => 'Good morning']);
+    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+
+    $this->actingAs($commit->user)->get($url)
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.source_language', null)
+        ->where('commit.translation.available', false));
+
+    $this->actingAs(User::factory()->create())->get($url)
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.source_language', null)
+        ->where('commit.translation.available', true));
+});
+
 it('hides translations everywhere and stops queueing detection once an admin switches the feature off', function (): void {
     Queue::fake([DetectCommitLanguage::class]);
     CommitTranslator::fake([
