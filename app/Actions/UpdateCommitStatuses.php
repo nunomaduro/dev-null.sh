@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -84,6 +85,11 @@ final readonly class UpdateCommitStatuses
                 $this->createMentionNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+
+                foreach ($commits->filter(fn (Commit $commit): bool => $commit->parent_id === null && $commit->body !== ''
+                    && $commit->topic_decision === null)->chunk(40) as $batch) {
+                    dispatch(new ClassifyCommitTopics(array_values($batch->map(fn (Commit $commit): string => $commit->id)->all())))->afterCommit();
+                }
 
                 if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($commits as $commit) {

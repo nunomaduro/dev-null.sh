@@ -5,10 +5,14 @@ declare(strict_types=1);
 use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\Poll;
+use Illuminate\Support\Facades\Queue;
 
 it('may approve a commit', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = Commit::factory()->pending()->create();
 
     $action = resolve(UpdateCommitStatus::class);
@@ -16,6 +20,8 @@ it('may approve a commit', function (): void {
     $action->handle($commit, CommitStatus::Approved);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+
+    Queue::assertPushed(ClassifyCommitTopics::class, fn (ClassifyCommitTopics $job): bool => $job->commitIds === [$commit->id]);
 });
 
 it('may reject a commit', function (): void {
@@ -49,6 +55,8 @@ it('notifies the parent author once a reply is approved', function (): void {
 });
 
 it('starts the clock of a poll once its commit is approved', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = Commit::factory()->pending()->create();
     $poll = Poll::factory()->for($commit)->unopened()->create();
 
@@ -60,6 +68,8 @@ it('starts the clock of a poll once its commit is approved', function (): void {
 });
 
 it('keeps the clock of a poll running when its commit is approved again', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = Commit::factory()->pending()->create();
     $poll = Poll::factory()->for($commit)->unopened()->create();
     $action = resolve(UpdateCommitStatus::class);
@@ -76,6 +86,8 @@ it('keeps the clock of a poll running when its commit is approved again', functi
 });
 
 it('notifies the quoted author once a quote is approved', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $quoted = Commit::factory()->create();
     $quote = Commit::factory()->pending()->for($quoted, 'quotedCommit')->create();
 

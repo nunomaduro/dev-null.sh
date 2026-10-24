@@ -7,8 +7,10 @@ use App\Actions\CreateWorldReply;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 it('answers an approved hello world once', function (): void {
     $commit = Commit::factory()->for(User::factory()->create(['name' => 'Nuno Maduro']))->create(['body' => 'Hello, World!']);
@@ -40,6 +42,8 @@ it('answers when an admin commits hello world', function (): void {
 });
 
 it('waits until a hello world is approved', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(['name' => 'Taylor Otwell']), 'hello world');
 
     expect($commit->status)->toBe(CommitStatus::Pending)

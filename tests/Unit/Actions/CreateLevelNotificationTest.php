@@ -9,6 +9,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
@@ -89,6 +90,8 @@ it('counts only the XP everyone can see', function (): void {
 
 it('checks the level of an author whose commit is approved', function (): void {
     config(['queue.default' => 'sync']);
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $user = User::factory()->create();
     Commit::factory()->for($user)->count(3)->create();
     $pending = Commit::factory()->for($user)->pending()->create();

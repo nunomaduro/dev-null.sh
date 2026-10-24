@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -14,6 +15,7 @@ use App\Models\User;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
@@ -74,6 +76,8 @@ dataset('unclear answers', [
 ]);
 
 it('stores that the ai would approve a commit it does not flag', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
         'api.openai.com/v1/responses' => reviewResponses(),
@@ -101,6 +105,8 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
 });
 
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
         'api.openai.com/v1/responses' => reviewResponses(),
@@ -374,6 +380,8 @@ it('skips commits that were moderated in the meantime', function (): void {
 });
 
 it('approves queued commits without calling the ai when the author has good reputation', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     Http::fake();
 
     $user = User::factory()->create(['created_at' => now()->subHour()->subSecond()]);
@@ -415,6 +423,7 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
 
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {
     config(['queue.default' => 'sync']);
+    Bus::fake([ClassifyCommitTopics::class]);
     Exceptions::fake();
     Http::fake([
         'api.openai.com/v1/moderations' => Http::sequence()
@@ -442,13 +451,19 @@ it('keeps unavailable moderation pending and recovers on a later queued attempt'
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', $recovers ? 0 : 1);
 
-    if (! $recovers) {
+    if ($recovers) {
+        Bus::assertDispatched(ClassifyCommitTopics::class, fn (ClassifyCommitTopics $job): bool => $job->commitIds === [$commit->id]);
+    } else {
+        Bus::assertNotDispatched(ClassifyCommitTopics::class);
+
         expect(DB::table('failed_jobs')->value('exception'))->toContain('Moderation failed for commit '.$commit->id)
             ->not->toContain('Sensitive provider response');
     }
 })->with([true, false]);
 
 it('approves clean commits even when their author has been reported', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
         'api.openai.com/v1/responses' => reviewResponses(),
@@ -465,6 +480,8 @@ it('approves clean commits even when their author has been reported', function (
 });
 
 it('approves reputable authors without calling the ai even when they have been reported', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     Http::fake();
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
     $reported = Commit::factory()->for($user)->create();

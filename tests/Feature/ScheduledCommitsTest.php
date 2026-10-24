@@ -431,7 +431,7 @@ it('rolls back creation if saving the delivery receipt fails', function (): void
 
     expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeTrue();
     expect(Commit::query()->count())->toBe(1);
-    $this->assertDatabaseCount('jobs', 3);
+    $this->assertDatabaseCount('jobs', 4);
 });
 
 it('rejects a competing claim and cancellation while creation is in progress', function (): void {

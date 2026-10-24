@@ -8,16 +8,20 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatus;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
+use App\Jobs\ClassifyCommitTopics;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
 it('does not notify an author when approving a pending commit', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = Commit::factory()->pending()->create();
     $stale = $commit->fresh();
 
@@ -28,6 +32,8 @@ it('does not notify an author when approving a pending commit', function (): voi
 });
 
 it('does not notify authors in a bulk approval and preserves reply notifications', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($parent, 'parent')->create();
     $commit = Commit::factory()->pending()->create();
@@ -49,6 +55,8 @@ it('does not notify authors in a bulk approval and preserves reply notifications
 });
 
 it('notifies mentioned users once a commit is approved', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $mentioned = User::factory()->create(['username' => 'taylorotwell']);
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Pairing with @taylorotwell today');
 
@@ -162,6 +170,8 @@ it('does not send moderation notices for initial autoapproval or unchanged appro
 });
 
 it('keeps only the current moderation decision relevant and notifies rejections but not approvals', function (): void {
+    Queue::fake([ClassifyCommitTopics::class]);
+
     $commit = Commit::factory()->pending()->create();
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please add context.');
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
