@@ -1,11 +1,13 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
+import { useLayoutEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { useContinuation } from '@/hooks/use-continuation';
 import AppLayout from '@/layouts/app-layout';
+import { scrollFirstPageToFocusedCommit } from '@/lib/focused-commit-scroll';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
 import { home } from '@/routes';
 import type {
@@ -51,6 +53,13 @@ export default function Show({
     };
 
     const lastAncestor = ancestors.at(-1);
+
+    // Runs before the first paint of a fresh load; later visits are scrolled by trackFocusedCommitScroll.
+    useLayoutEffect(() => {
+        scrollFirstPageToFocusedCommit(commit.id, ancestors.length);
+        // Only the first render of the page matters.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <>
@@ -119,6 +128,16 @@ export default function Show({
                     isFocused
                 />
 
+                {ancestors.length > 0 && (
+                    <script
+                        // A server-rendered page is painted before the app runs, so the browser is told to scroll to the
+                        // commit as soon as it has parsed it, unless it is restoring a position after a reload or going back.
+                        dangerouslySetInnerHTML={{
+                            __html: scrollWhileParsing(commit.id),
+                        }}
+                    />
+                )}
+
                 {shown.map((next, index) => {
                     const previous = shown[index - 1] ?? commit;
                     const following = shown[index + 1];
@@ -166,6 +185,12 @@ export default function Show({
             </GraphCanvas>
         </>
     );
+}
+
+function scrollWhileParsing(id: string): string {
+    const selector = JSON.stringify(`[data-commit="${id}"]`);
+
+    return `(function(){var l=performance.getEntriesByType('navigation')[0];if(l&&l.type!=='navigate')return;var c=document.querySelector(${selector});if(c)c.scrollIntoView({block:'start',behavior:'instant'});})();`;
 }
 
 function isSameAuthor(
