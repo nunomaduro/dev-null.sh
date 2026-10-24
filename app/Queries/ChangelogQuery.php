@@ -10,6 +10,7 @@ use App\Services\PullRequestTitles;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 
 /**
  * @phpstan-type GitHubPullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
@@ -84,17 +85,18 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * One page of the closed pull requests, most recently updated first. Each page is cached for half an hour, and a
-     * failed read is not cached, so the next request tries again.
+     * One page of the closed pull requests, most recently updated first. Each page is cached for half an hour per
+     * asset version, and a failed read is not cached, so the next request tries again.
      *
      * @return list<GitHubPullRequest>|null
      */
     private function page(int $page): ?array
     {
         $repository = config()->string('services.github.repository');
+        $version = Inertia::getVersion();
 
         /** @var list<GitHubPullRequest>|null */
-        return Cache::remember("changelog:{$repository}:page:{$page}", 1800, function () use ($repository, $page): ?array {
+        return Cache::remember("changelog:{$repository}:{$version}:page:{$page}", 1800, function () use ($repository, $page): ?array {
             try {
                 $pullRequests = $this->github->request()->get("repos/{$repository}/pulls", [
                     'state' => 'closed',
