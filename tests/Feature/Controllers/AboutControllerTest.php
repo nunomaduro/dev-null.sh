@@ -40,7 +40,18 @@ it('hands the contributors to the page', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('contributors', 1)
-            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 187]));
+            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 187, 'username' => null]));
+});
+
+it('links each contributor who is on /dev/null to their profile, found by their GitHub account', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 217, id: 14284867), gitHubContributor('nunomaduro', 189)]);
+    User::factory()->create(['github_id' => '14284867', 'username' => 'renamed-on-devnull']);
+
+    $this->get(route('about.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 217, 'username' => 'renamed-on-devnull'])
+            ->where('contributors.1', ['login' => 'nunomaduro', 'commits' => 189, 'username' => null]));
 });
 
 it('leaves the contributors out while GitHub is unreachable', function (): void {

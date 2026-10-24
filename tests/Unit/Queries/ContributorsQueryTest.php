@@ -11,8 +11,8 @@ it('lists everyone with a commit, as GitHub counts them', function (): void {
     fakeGitHubContributors([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([
-        ['login' => 'xHeaven', 'commits' => 187],
-        ['login' => 'jubianchi', 'commits' => 1],
+        ['login' => 'xHeaven', 'commits' => 187, 'username' => null],
+        ['login' => 'jubianchi', 'commits' => 1, 'username' => null],
     ]);
 });
 
@@ -24,7 +24,7 @@ it('leaves out the bots and the agents, whatever case they are written in', func
         gitHubContributor('dependabot', 4, 'Bot'),
     ]);
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'username' => null]]);
 });
 
 it('reads every page GitHub has, up to a thousand people', function (int $contributors, int $expected, int $requests): void {
@@ -49,10 +49,15 @@ it('keeps reading when a page is full but some of it is left out', function (): 
     Http::assertSentCount(2);
 });
 
-it('skips what GitHub sends without a login or a count', function (): void {
-    fakeGitHubContributors([['login' => 'ghost', 'type' => 'User'], ['contributions' => 3, 'type' => 'User'], gitHubContributor('xHeaven', 187)]);
+it('skips what GitHub sends without a login, an account or a count', function (): void {
+    fakeGitHubContributors([
+        ['login' => 'ghost', 'id' => 1, 'type' => 'User'],
+        ['id' => 2, 'contributions' => 3, 'type' => 'User'],
+        ['login' => 'nobody', 'contributions' => 3, 'type' => 'User'],
+        gitHubContributor('xHeaven', 187),
+    ]);
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'username' => null]]);
 });
 
 it('asks GitHub again an hour later, not before', function (): void {
@@ -74,7 +79,7 @@ it('keeps an answer with nobody in it for the hour, since GitHub did answer', fu
     fakeGitHubContributors([gitHubContributor('claude', 2)]);
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([])
-        ->and(Cache::get('about:contributors:'.config()->string('services.github.repository')))->toBe([]);
+        ->and(Cache::get('about:contributor-accounts:'.config()->string('services.github.repository')))->toBe([]);
 
     $this->travel(2)->minutes();
     resolve(ContributorsQuery::class)->get();
@@ -123,6 +128,6 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     $this->travel(61)->seconds();
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'username' => null]]);
     Http::assertSentCount(3);
 });

@@ -138,9 +138,9 @@ function fakeGitHubAccount(User $user, array $account = []): void
 /**
  * @return array<string, mixed>
  */
-function gitHubContributor(string $login, int $commits, string $type = 'User'): array
+function gitHubContributor(string $login, int $commits, string $type = 'User', ?int $id = null): array
 {
-    return ['login' => $login, 'contributions' => $commits, 'type' => $type];
+    return ['login' => $login, 'id' => $id ?? crc32($login), 'contributions' => $commits, 'type' => $type];
 }
 
 /**
