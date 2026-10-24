@@ -72,6 +72,9 @@ function Reason({ reason, title }: { reason: string; title: string }) {
 
 const shownSuggestionsCount = 3;
 
+// Long enough to see the follow land before the row makes way for someone else.
+const followedRowDelay = 1000;
+
 function DismissButton({
     user,
     onDismiss,
@@ -108,7 +111,8 @@ function DismissButton({
  * The aside is too narrow to share a line with the button, so there the bio and reason go below on their own lines.
  *
  * With onDismiss, the row gets small follow and dismiss icons instead of the full follow button. onDismiss returns
- * whether someone takes the row's place; otherwise the row folds away. A failed dismissal opens it back up. These rows
+ * whether someone takes the row's place; otherwise the row folds away. A failed dismissal opens it back up. onFollow
+ * does the same a moment after a follow from the row, since someone you follow is no longer a suggestion. These rows
  * keep room for both lines below the name, so someone without a bio taking a slot doesn't move the rows under it.
  */
 export function SuggestedUserRow({
@@ -117,12 +121,14 @@ export function SuggestedUserRow({
     className,
     buttonClassName,
     onDismiss,
+    onFollow,
 }: {
     user: SuggestedUser;
     isStacked?: boolean;
     className?: string;
     buttonClassName?: string;
     onDismiss?: (onFailed: () => void) => boolean;
+    onFollow?: () => boolean;
 }) {
     const reason = reasonFor(user);
     const exactReason = reasonFor(user, formatExactCount);
@@ -214,6 +220,14 @@ export function SuggestedUserRow({
                                 isFollowing={false}
                                 followsYou={user.follows_you}
                                 marksFollowsYou
+                                onFollow={() =>
+                                    window.setTimeout(
+                                        () =>
+                                            onFollow?.() ||
+                                            setIsDismissed(true),
+                                        followedRowDelay,
+                                    )
+                                }
                                 data-test="suggested-follow-button"
                             />
                             <DismissButton
@@ -361,7 +375,7 @@ function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers } = usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
-    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
+    const { hasDismissed, isEmptied, dismiss, follow } = useDismissSuggestion();
 
     const toggle = (hides: boolean) => {
         rememberShowsWhoToFollow(!hides);
@@ -377,22 +391,26 @@ function useHideWhoToFollow() {
         undo: () => toggle(false),
         suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
         dismiss,
+        follow,
     };
 }
 
 type TopUp = 'idle' | 'running' | 'queued';
 
 const dismissedIds = new Set<SuggestedUser['id']>();
+const followedIds = new Set<SuggestedUser['id']>();
 
 /**
  * The server sends a few spare suggestions after the shown ones, so a dismissed person's slot is taken by the next
- * spare right away while everyone else stays put. Once every dismissal is through, the spares are topped up from the
- * server, which only adds people after the ones already here. A dismissal that fails puts the person back in their
- * slot, unless a refresh has moved on to other people since.
+ * spare right away while everyone else stays put. Someone followed from a row makes way the same way, with nothing
+ * left to save. Once every dismissal is through, the spares are topped up from the server, which only adds people
+ * after the ones already here. A dismissal that fails puts the person back in their slot, unless a refresh has moved
+ * on to other people since.
  *
  * A top-up can be answered before someone else's dismissal is saved, so everyone dismissed since the page loaded is
- * taken out again when it lands, and the next top-up follows. Visiting another page cancels a top-up, so it is sent
- * again once that page is shown.
+ * taken out again when it lands, and the next top-up follows. Someone followed is only taken out of top-ups sent
+ * before their follow: the server leaves them out of later ones while you follow them, and suggests them again once
+ * you don't. Visiting another page cancels a top-up, so it is sent again once that page is shown.
  *
  * The aside and the log share this state, so both say nobody is left once a top-up finds nobody else, until the next
  * page load leaves the block out like any other time there's nobody to suggest.
@@ -413,24 +431,32 @@ function useDismissSuggestion() {
     );
 
     const remove = (user: Pick<SuggestedUser, 'id'>): void => {
-        router.replaceProp('suggestedUsers', (current: SuggestedUser[]) => {
-            const slot = current.findIndex(
-                (suggested) => suggested.id === user.id,
-            );
+        // A page visited in the meantime may have no suggestions at all.
+        router.replaceProp(
+            'suggestedUsers',
+            (current: SuggestedUser[] | undefined) => {
+                if (current === undefined) {
+                    return current;
+                }
 
-            if (slot === -1) {
-                return current;
-            }
+                const slot = current.findIndex(
+                    (suggested) => suggested.id === user.id,
+                );
 
-            const remaining = [...current];
-            const spare =
-                slot < shownSuggestionsCount
-                    ? remaining.splice(shownSuggestionsCount, 1)
-                    : [];
-            remaining.splice(slot, 1, ...spare);
+                if (slot === -1) {
+                    return current;
+                }
 
-            return remaining;
-        });
+                const remaining = [...current];
+                const spare =
+                    slot < shownSuggestionsCount
+                        ? remaining.splice(shownSuggestionsCount, 1)
+                        : [];
+                remaining.splice(slot, 1, ...spare);
+
+                return remaining;
+            },
+        );
     };
 
     /**
@@ -461,6 +487,7 @@ function useDismissSuggestion() {
     };
 
     const sendTopUp = (): void => {
+        const followedBefore = [...followedIds];
         let isApplied = false;
 
         setTopUp('running');
@@ -470,7 +497,12 @@ function useDismissSuggestion() {
             onBeforeUpdate: () => {
                 isApplied = true;
             },
-            onSuccess: () => dismissedIds.forEach((id) => remove({ id })),
+            onSuccess: () => {
+                [...dismissedIds, ...followedIds].forEach((id) =>
+                    remove({ id }),
+                );
+                followedBefore.forEach((id) => followedIds.delete(id));
+            },
             onFinish: () => {
                 if (!isApplied) {
                     const stop = router.on('navigate', () => {
@@ -516,17 +548,48 @@ function useDismissSuggestion() {
         }
     };
 
+    /**
+     * Returns whether a spare takes the person's slot.
+     */
+    const takeOut = (
+        user: SuggestedUser,
+        takenOutIds: Set<SuggestedUser['id']>,
+    ): boolean => {
+        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
+
+        takenOutIds.add(user.id);
+        setHasDismissed(true);
+
+        if (hasSpare) {
+            remove(user);
+        } else {
+            // Taken out after the row has folded away, even if the block it was dismissed from is no longer shown.
+            window.setTimeout(() => {
+                if (takenOutIds.has(user.id)) {
+                    remove(user);
+                }
+            }, 300);
+        }
+
+        return hasSpare;
+    };
+
+    const follow = (user: SuggestedUser): boolean => {
+        setDismissingCount((count) => count + 1);
+        const hasSpare = takeOut(user, followedIds);
+        settle();
+
+        return hasSpare;
+    };
+
     const dismiss = (user: SuggestedUser, onFailed: () => void): boolean => {
         const shownIds = suggestedUsers
             .slice(0, shownSuggestionsCount)
             .map((suggested) => suggested.id);
         const slot = shownIds.indexOf(user.id);
         const round = currentRound();
-        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
         let isSaved = false;
 
-        dismissedIds.add(user.id);
-        setHasDismissed(true);
         setDismissingCount((count) => count + 1);
         router.visit(SuggestionDismissalController.store(user), {
             only: ['auth'],
@@ -552,18 +615,7 @@ function useDismissSuggestion() {
             },
         });
 
-        if (hasSpare) {
-            remove(user);
-        } else {
-            // Taken out after the row has folded away, even if the block it was dismissed from is no longer shown.
-            window.setTimeout(() => {
-                if (dismissedIds.has(user.id)) {
-                    remove(user);
-                }
-            }, 300);
-        }
-
-        return hasSpare;
+        return takeOut(user, dismissedIds);
     };
 
     return {
@@ -574,6 +626,7 @@ function useDismissSuggestion() {
             topUp === 'idle' &&
             suggestedUsers.length === 0,
         dismiss,
+        follow,
     };
 }
 
@@ -631,6 +684,7 @@ export function WhoToFollow() {
         undo,
         suggestedUsers,
         dismiss,
+        follow,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -671,6 +725,7 @@ export function WhoToFollow() {
                                 onDismiss={(onFailed) =>
                                     dismiss(user, onFailed)
                                 }
+                                onFollow={() => follow(user)}
                             />
                         ))}
                     </Deferred>
@@ -692,6 +747,7 @@ export function WhoToFollowInLog() {
         undo,
         suggestedUsers,
         dismiss,
+        follow,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -741,6 +797,7 @@ export function WhoToFollowInLog() {
                                     onDismiss={(onFailed) =>
                                         dismiss(user, onFailed)
                                     }
+                                    onFollow={() => follow(user)}
                                 />
                             ))}
                         </Deferred>

@@ -260,12 +260,14 @@ export function FollowIconButton({
     isFollowing: initialIsFollowing,
     followsYou = false,
     marksFollowsYou = false,
+    onFollow,
     ...props
 }: {
     user: Pick<User, 'id' | 'username'>;
     isFollowing: boolean;
     followsYou?: boolean;
     marksFollowsYou?: boolean;
+    onFollow?: () => void;
     'data-test'?: string;
 }) {
     const {
@@ -298,6 +300,10 @@ export function FollowIconButton({
                     onSuccess={() => {
                         setIsFollowing(!isFollowing);
                         router.flushAll();
+
+                        if (!isFollowing) {
+                            onFollow?.();
+                        }
                     }}
                     aria-label={
                         isFollowing
