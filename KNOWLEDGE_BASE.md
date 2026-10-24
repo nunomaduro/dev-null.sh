@@ -399,7 +399,7 @@ Settings → Appearance offers:
 
 These appearance choices are saved in the browser, not on the account, so each browser keeps its own. Settings → Profile lets you choose one of six lane colors (Orange, Green, Violet, Teal, Rose, Ochre), a custom color, or the automatic color used around your identity and activity graph.
 
-Profile settings also let you share a timezone. Timestamps can show the author's local time as well as the viewer's when a timezone is shared. Leaving it unset uses the browser's timezone for your display without publishing your timezone. A separate, off-by-default setting shows your current local time on your profile, next to your location and website; it only applies while a timezone is set, and clearing the timezone turns it off. These /dev/null preferences are separate from your GitHub-managed profile information.
+Profile settings also let you share a timezone. Timestamps can show the author's local time as well as the viewer's when a timezone is shared. Leaving it unset uses the browser's timezone for your display without publishing your timezone. A separate, off-by-default setting shows your current local time on your profile, next to your location and website, and in the header of direct Remotes with you. It only applies while a timezone is set, and clearing the timezone turns it off. These /dev/null preferences are separate from your GitHub-managed profile information.
 
 Sources: [appearance settings](resources/js/pages/appearance/update.tsx), [lane picker](resources/js/components/lane-picker.tsx), [timezone picker](resources/js/components/timezone-picker.tsx), [local time](resources/js/components/local-time.tsx), [timestamp tooltip](resources/js/components/timestamp-tooltip.tsx).
 

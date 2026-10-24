@@ -71,7 +71,7 @@ export default function TimezonePicker() {
         <section className="px-4 py-6 sm:px-6">
             <Heading
                 title="Timezone"
-                description="Hover a commit or reply time to see it in your timezone, and in the author's when they have set one. Others see yours the same way. Leave it unset to use your browser's timezone without sharing it. Your local time only shows on your profile if you turn that on below."
+                description="Hover a commit or reply time to see it in your timezone, and in the author's when they have set one. Others see yours the same way. Leave it unset to use your browser's timezone without sharing it. Your current local time is also visible on your profile and in direct Remotes if you opt in below."
             />
 
             <Form
@@ -206,10 +206,10 @@ export default function TimezonePicker() {
                                 htmlFor="show-local-time"
                                 className="block text-sm leading-snug font-normal"
                             >
-                                Show my local time on my profile
+                                Show my local time on my profile and in Remotes
                                 <span className="block text-muted-foreground">
-                                    Anyone who opens your profile sees the
-                                    current time in your timezone.
+                                    People viewing your profile or chatting
+                                    with you can see your current local time.
                                 </span>
                             </Label>
                         </div>

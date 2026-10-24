@@ -11,6 +11,7 @@ import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { OrgHeader, OrgPeopleDialog } from '@/components/chat/org';
 import { RemoteSettingsMenu } from '@/components/chat/remote-settings-menu';
 import { SearchDialog } from '@/components/search-dialog';
@@ -275,7 +276,7 @@ function ThreadHeader({
                         } as React.CSSProperties
                     }
                 />
-                <span className="min-w-0">
+                <div className="min-w-0">
                     <span
                         className="block truncate text-[15px] font-semibold hover:underline"
                         title={partner.name}
@@ -285,7 +286,8 @@ function ThreadHeader({
                     <span className="block truncate font-mono text-xs text-muted-foreground">
                         @{partner.username}
                     </span>
-                </span>
+                    <RemoteLocalTime partner={partner} />
+                </div>
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
