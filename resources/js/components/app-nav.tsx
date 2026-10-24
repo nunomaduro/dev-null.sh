@@ -6,6 +6,7 @@ import {
     GitCommitVertical,
     History,
     MessagesSquare,
+    MessageSquareReply,
     PanelLeftClose,
     PanelLeftOpen,
     Search,
@@ -497,27 +498,38 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
+/**
+ * On a commit's page the button replies to that commit instead of starting a new one.
+ */
 export function MobileCommitButton({
     isHidden,
+    isReply = false,
     onCompose,
 }: {
     isHidden: boolean;
+    isReply?: boolean;
     onCompose: () => void;
 }) {
+    const label = isReply ? 'Reply to commit' : 'Write a commit';
+
     return (
         <Button
             type="button"
             onClick={onCompose}
             inert={isHidden}
-            aria-label="Write a commit"
-            title="Write a commit"
+            aria-label={label}
+            title={label}
             className={cn(
                 'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
         >
-            <SquarePen className="size-6" />
+            {isReply ? (
+                <MessageSquareReply className="size-6" />
+            ) : (
+                <SquarePen className="size-6" />
+            )}
         </Button>
     );
 }
