@@ -79,6 +79,14 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::Banned, __('Your account is banned from /dev/null. All you can do is delete it.'));
     }
 
+    /**
+     * The scheduled commit was submitted, or canceled, before it could be changed or canceled. The web's own words.
+     */
+    public static function scheduledCommitSubmitted(): self
+    {
+        return new self(ApiErrorCode::ScheduledCommitSubmitted, __('This commit was already submitted or canceled. Refresh to see its status.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

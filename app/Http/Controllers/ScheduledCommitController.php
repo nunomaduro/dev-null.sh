@@ -10,6 +10,7 @@ use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Queries\ScheduledCommitsQuery;
 use App\Services\CommitBodies;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -20,12 +21,10 @@ use Inertia\Response;
 
 final readonly class ScheduledCommitController
 {
-    public function index(#[CurrentUser] User $user, CommitBodies $bodies): Response
+    public function index(#[CurrentUser] User $user, CommitBodies $bodies, ScheduledCommitsQuery $scheduledCommits): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => fn (): LengthAwarePaginator => ScheduledCommit::query()->where('user_id', $user->id)
-                ->whereNull('canceled_at')->with('commit')
-                ->orderByRaw('submitted_at IS NOT NULL')->orderBy('scheduled_at')->orderBy('id')
+            'scheduledCommits' => fn (): LengthAwarePaginator => $scheduledCommits->builder($user)
                 ->paginate(20)->through(fn (ScheduledCommit $scheduled): array => [
                     'id' => $scheduled->id,
                     ...($scheduled->submitted_at === null && $scheduled->body !== null

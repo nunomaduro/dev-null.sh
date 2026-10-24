@@ -23,6 +23,7 @@ enum ApiErrorCode: string
     case TimedOut = 'timed_out';
     case Banned = 'banned';
     case CommitRulesRequired = 'commit_rules_required';
+    case ScheduledCommitSubmitted = 'scheduled_commit_submitted';
 
     public function status(): int
     {
@@ -31,6 +32,7 @@ enum ApiErrorCode: string
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable, self::OwnCommit, self::TimedOut, self::Banned, self::CommitRulesRequired => 403,
             self::CommitUnavailable => 404,
+            self::ScheduledCommitSubmitted => 409,
             self::PasteisExhausted => 422,
             self::RateLimited => 429,
             self::GitHubSyncFailed => 503,
