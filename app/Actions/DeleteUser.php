@@ -13,6 +13,7 @@ use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
 use App\Models\ScheduledCommit;
+use App\Models\Topic;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
@@ -50,6 +51,19 @@ final readonly class DeleteUser
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            $commitIds = Commit::query()->withTrashed()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+                ->select('id');
+            (clone $commitIds)->orderBy('id')->lockForUpdate()->get();
+            $topicIds = Topic::query()
+                ->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->withTrashed()->whereIn('commits.id', $commitIds))
+                ->orderBy('id')->lockForUpdate()->pluck('id');
+            DB::table('commit_topic')->whereIn('commit_id', $commitIds)->delete();
+            Topic::query()->whereKey($topicIds)
+                ->whereDoesntHave('commits', fn (CommitBuilder $query): CommitBuilder => $query->withTrashed())
+                ->delete();
+
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -59,7 +73,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'topic_decision' => null, 'link_preview_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
