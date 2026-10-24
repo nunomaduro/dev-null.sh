@@ -259,7 +259,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // Remotes: finding people to push to, and starting an org, as the web's New remote and New org do...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('api-remote-candidate.index');
-            Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('api-org.store');
+            Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('api-org.store');
         });
     });
 });
