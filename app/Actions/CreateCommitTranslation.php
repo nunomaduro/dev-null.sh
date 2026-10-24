@@ -43,7 +43,7 @@ final readonly class CreateCommitTranslation
                 $reason = match (true) {
                     $response->structured === [] => 'empty_or_malformed_response',
                     ! is_string($source), ! is_string($body) => 'invalid_response_shape',
-                    ! in_array($source, [...$this->translations->languages(), 'und'], true) => 'unsupported_source_language',
+                    ! in_array($source, [...$this->translations->sourceLanguages(), 'und'], true) => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
                     $language !== null && $source !== 'und' && mb_strlen($body) > 16000 => 'translation_too_long',
                     default => null,

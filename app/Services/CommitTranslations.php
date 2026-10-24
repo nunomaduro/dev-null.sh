@@ -37,22 +37,50 @@ final readonly class CommitTranslations
         return 'commit-translations:v1:'.hash('sha256', $commit->body);
     }
 
-    /** @return list<string> */
+    /**
+     * The languages a post can be translated into: one per language, except Chinese, whose Simplified and Traditional scripts are separate targets.
+     *
+     * @return list<string>
+     */
     public function languages(): array
     {
         return once(function (): array {
             /** @var list<string> $locales */
             $locales = ResourceBundle::getLocales('');
 
-            return array_values(collect($locales)->map(fn (string $locale): string => Locale::getPrimaryLanguage($locale) ?? 'und')->unique()->all());
+            return array_values(collect($locales)->map($this->code(...))->unique()->all());
         });
+    }
+
+    /**
+     * The languages detection can report: plain language codes, so a Chinese post counts as Chinese whichever script it uses.
+     *
+     * @return list<string>
+     */
+    public function sourceLanguages(): array
+    {
+        return once(fn (): array => array_values(collect($this->languages())->map(fn (string $code): string => Locale::getPrimaryLanguage($code) ?? 'und')->unique()->all()));
     }
 
     public function language(): string
     {
-        $language = Locale::getPrimaryLanguage(request()->user()->translation_language ?? request()->getPreferredLanguage() ?? 'en');
+        $language = $this->code(request()->user()->translation_language ?? request()->getPreferredLanguage() ?? 'en');
 
         return in_array($language, $this->languages(), true) ? $language : 'en';
+    }
+
+    /**
+     * The target code for a locale: its language, with the script for Chinese, so zh, zh_CN and zh_TW become zh-Hans, zh-Hans and zh-Hant.
+     */
+    public function code(string $locale): string
+    {
+        $language = Locale::getPrimaryLanguage($locale) ?? 'und';
+
+        if ($language !== 'zh') {
+            return $language;
+        }
+
+        return 'zh-'.(Locale::getScript(Locale::addLikelySubtags($locale) ?: $locale) ?: 'Hans');
     }
 
     /** @return CachedTranslations|null */

@@ -192,6 +192,38 @@ it('skips language detection jobs that were already queued when the feature is s
     CommitTranslator::assertNeverPrompted();
 });
 
+it('keeps Simplified and Traditional Chinese apart as targets while reading Chinese posts as one language', function (): void {
+    CommitTranslator::fake([
+        ['source_language' => 'de', 'body' => '早安'],
+        ['source_language' => 'zh', 'body' => 'Good morning'],
+    ])->preventStrayPrompts();
+    $german = Commit::factory()->create(['body' => 'Guten morgen']);
+    $chinese = Commit::factory()->create(['body' => '早安']);
+
+    $this->actingAs(User::factory()->create(['translation_language' => 'zh']))
+        ->withHeader('Accept-Language', 'zh-TW,zh;q=0.9')
+        ->get(route('commit.show', ['user' => $german->user, 'commit' => $german]))
+        ->assertOk()->assertInertia(fn ($page) => $page->where('commit.translation.language', 'zh-Hans'));
+
+    $this->actingAs(User::factory()->create())
+        ->withHeader('Accept-Language', 'zh-TW,zh;q=0.9')
+        ->get(route('commit.show', ['user' => $german->user, 'commit' => $german]))
+        ->assertOk()->assertInertia(fn ($page) => $page->where('commit.translation.language', 'zh-Hant'));
+
+    $this->postJson(route('commit-translation.store', $german), ['language' => 'zh'])
+        ->assertUnprocessable()->assertJsonValidationErrors('language');
+
+    $this->postJson(route('commit-translation.store', $german), ['language' => 'zh-Hant'])
+        ->assertOk()->assertJsonPath('translation.language', 'zh-Hant')
+        ->assertJsonPath('translation.translated.body_segments.0.text', '早安');
+
+    $this->postJson(route('commit-translation.store', $chinese), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.source_name', 'Chinese')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
+
+    CommitTranslator::assertPromptedTimes(2);
+});
+
 it('rejects unsupported target languages before calling the provider', function (mixed $language): void {
     CommitTranslator::fake()->preventStrayPrompts();
     $commit = Commit::factory()->create();

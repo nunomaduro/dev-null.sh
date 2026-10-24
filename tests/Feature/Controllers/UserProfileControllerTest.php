@@ -189,6 +189,12 @@ it('requires authentication to sync', function (): void {
     Http::assertNothingSent();
 });
 
+it('shows a plain Chinese preference saved before the scripts were split as Simplified', function (): void {
+    $this->actingAs(User::factory()->create(['translation_language' => 'zh']))
+        ->get(route('user-profile.edit'))
+        ->assertOk()->assertInertia(fn ($page) => $page->where('translationLanguage', 'zh-Hans'));
+});
+
 it('shows the private translation preference and supported choices only in own settings', function (): void {
     $user = User::factory()->create(['translation_language' => 'ja']);
     $other = User::factory()->create(['translation_language' => 'de']);
@@ -197,5 +203,7 @@ it('shows the private translation preference and supported choices only in own s
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('translationLanguage', 'ja')
         ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'hu' && $language['name'] === 'Hungarian' && $language['nativeName'] === 'magyar'))
+        ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'zh-Hant' && $language['name'] === 'Chinese (Traditional)' && $language['nativeName'] === '中文（繁體）'))
+        ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains('code', 'zh-Hans') && collect($languages)->doesntContain('code', 'zh'))
         ->missing('auth.user.translation_language'));
 });

@@ -18,11 +18,11 @@ final readonly class UserProfileController
     public function edit(#[CurrentUser] User $user, CommitTranslations $translations): Response
     {
         return Inertia::render('user-profile/edit', [
-            'translationLanguage' => $user->translation_language,
+            'translationLanguage' => $user->translation_language === null ? null : $translations->code($user->translation_language),
             'translationLanguages' => collect($translations->languages())->map(fn (string $code): array => [
                 'code' => $code,
-                'name' => Locale::getDisplayLanguage($code, 'en'),
-                'nativeName' => Locale::getDisplayLanguage($code, $code),
+                'name' => Locale::getDisplayName($code, 'en'),
+                'nativeName' => Locale::getDisplayName($code, $code),
             ])->sortBy('name')->values()->all(),
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
