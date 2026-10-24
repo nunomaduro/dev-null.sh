@@ -352,6 +352,13 @@ it('selects only known affirmative predicates at or above the probability thresh
     expect($tools->map(class_basename(...))->all())->toBe(['CommunityStats']);
 });
 
+it('tells Tom which addresses it may write without a tool result', function (): void {
+    $question = Commit::factory()->create(['body' => 'Where is the knowledge base?']);
+
+    expect(new Tom($question)->instructions())
+        ->toContain('never give a URL for it', 'https://github.com/dev-null-sh/dev-null.sh');
+});
+
 it('remembers only the public ancestor branch with the correct speakers', function (): void {
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['username' => 'alice']);
