@@ -75,3 +75,30 @@ it('requires authentication', function (): void {
 
     $this->get(route('message-image.show', $image))->assertRedirect();
 });
+
+it('does not serve images when a participant in a direct conversation is blocked', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $image = storedMessageImage(sendChatMessage($mark, $nuno));
+
+    $mark->blocking()->attach($nuno);
+
+    $this->actingAs($mark)->get(route('message-image.show', $image))->assertNotFound();
+    $this->actingAs($nuno)->get(route('message-image.show', $image))->assertNotFound();
+
+    $mark->blocking()->detach($nuno);
+    $nuno->blocking()->attach($mark);
+
+    $this->actingAs($mark)->get(route('message-image.show', $image))->assertNotFound();
+    $this->actingAs($nuno)->get(route('message-image.show', $image))->assertNotFound();
+});
+
+it('does not serve images when the user has remotes disabled', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $image = storedMessageImage(sendChatMessage($mark, $nuno));
+
+    $nuno->update(['remotes_enabled' => false]);
+
+    $this->actingAs($nuno)->get(route('message-image.show', $image))->assertNotFound();
+});

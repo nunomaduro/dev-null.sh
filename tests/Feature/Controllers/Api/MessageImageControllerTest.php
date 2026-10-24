@@ -107,3 +107,32 @@ it('signs the URL for one person only', function (): void {
     $this->get(url(URL::temporarySignedRoute('api-message-image.show', now()->addHour(), ['messageImage' => $this->image, 'user' => $stranger->id], absolute: false)))
         ->assertNotFound();
 });
+
+it('does not allow overriding the signed user parameter via request body', function (): void {
+    $stranger = User::factory()->create();
+    $url = signedImageUrl();
+
+    $this->call('GET', $url, server: ['CONTENT_TYPE' => 'application/json'], content: json_encode(['user' => $stranger->id]))
+        ->assertOk();
+});
+
+it('stops serving it if the user is banned', function (): void {
+    $url = signedImageUrl();
+
+    $this->user->update(['banned_at' => now()]);
+
+    $this->get($url)->assertNotFound();
+});
+
+it('stops serving it if either participant blocks the other in a direct conversation', function (): void {
+    $url = signedImageUrl();
+
+    $this->user->blocking()->attach($this->nuno);
+
+    $this->get($url)->assertNotFound();
+
+    $this->user->blocking()->detach($this->nuno);
+    $this->nuno->blocking()->attach($this->user);
+
+    $this->get($url)->assertNotFound();
+});

@@ -86,6 +86,20 @@ it('refuses a code it cannot redeem, the same way whatever is wrong with it', fu
     },
 ]);
 
+it('refuses to redeem a code for a banned user', function (): void {
+    $this->user->update(['banned_at' => now()]);
+
+    $response = signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier]);
+
+    $response->assertForbidden()
+        ->assertExactJson([
+            'message' => 'Your account is banned from /dev/null. All you can do is delete it.',
+            'code' => 'banned',
+        ]);
+
+    expect(Device::query()->exists())->toBeFalse();
+});
+
 it('refuses a code handed out for another key, and leaves it for that key', function (): void {
     $other = SshKeyPair::generate();
 

@@ -79,14 +79,17 @@ final class CreateApiDeviceRequest extends FormRequest
         $key = AuthorizationCode::keyFor($this->string('code')->value());
         $stored = Cache::get($key);
         $code = is_array($stored) ? AuthorizationCode::fromArray($key, $stored) : null;
+        $user = User::query()->find($code?->userId);
 
         throw_unless(
             $code instanceof AuthorizationCode
                 && hash_equals($code->fingerprint, $this->fingerprint)
                 && hash_equals($code->codeChallenge, AuthorizationCode::challengeFor($this->string('code_verifier')->value()))
-                && User::query()->whereKey($code->userId)->exists(),
+                && $user instanceof User,
             ApiException::invalidGrant(),
         );
+
+        throw_if($user->isBanned(), ApiException::banned());
 
         $this->authorizationCode = $code;
     }

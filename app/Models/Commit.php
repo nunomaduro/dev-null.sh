@@ -271,7 +271,7 @@ final class Commit extends Model
             return false;
         }
 
-        if ($this->status === CommitStatus::Approved) {
+        if ($this->isVisibleTo($user)) {
             return true;
         }
 

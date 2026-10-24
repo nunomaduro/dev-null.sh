@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ConversationKind;
 use App\Enums\OrgEvent;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\JoinClause;
 
 /**
  * Bodies, and the people they mention, are encrypted at rest with the app key, so database dumps and backups don't
@@ -151,10 +154,22 @@ final class Message extends Model
      */
     public function isVisibleTo(User $user): bool
     {
+        if (! $user->remotes_enabled) {
+            return false;
+        }
+
         return ConversationParticipant::query()
             ->where('conversation_id', $this->conversation_id)
             ->where('user_id', $user->id)
             ->where('visible_from_id', '<', $this->id)
+            ->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query
+                ->from('conversations')
+                ->join('conversation_participants as theirs', fn (JoinClause $join): JoinClause => $join
+                    ->on('theirs.conversation_id', '=', 'conversations.id')
+                    ->where('theirs.user_id', '!=', $user->id))
+                ->whereColumn('conversations.id', 'conversation_participants.conversation_id')
+                ->where('conversations.kind', ConversationKind::Direct->value)
+                ->whereIn('theirs.user_id', $user->idsAcrossBlocks()))
             ->exists();
     }
 

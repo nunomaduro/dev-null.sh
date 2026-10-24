@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 final class ShowApiMessageImageRequest extends FormRequest
 {
@@ -22,10 +23,11 @@ final class ShowApiMessageImageRequest extends FormRequest
         $messageImage = $this->route('messageImage');
         assert($messageImage instanceof MessageImage);
 
-        $user = User::query()->find($this->string('user')->value());
+        $userId = $this->query('user');
+        $user = is_string($userId) && Str::isUuid($userId) ? User::query()->find($userId) : null;
         $message = Message::query()->find($messageImage->message_id);
 
-        return $user instanceof User && $message instanceof Message && $message->isVisibleTo($user) && Storage::disk()->exists($messageImage->path)
+        return $user instanceof User && ! $user->isBanned() && $message instanceof Message && $message->isVisibleTo($user) && Storage::disk()->exists($messageImage->path)
             ? Response::allow()
             : Response::denyAsNotFound();
     }

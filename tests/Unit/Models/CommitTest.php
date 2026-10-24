@@ -437,6 +437,14 @@ it('shows images when approved, to the author, or to moderators', function (): v
         ->and($rejected->imagesAreVisibleTo($viewer))->toBeFalse()
         ->and($rejected->imagesAreVisibleTo($moderator))->toBeTrue();
 
+    $author->blocking()->attach($viewer);
+    expect($approved->imagesAreVisibleTo($viewer))->toBeFalse();
+    $author->blocking()->detach($viewer);
+
+    $viewer->blocking()->attach($author);
+    expect($approved->imagesAreVisibleTo($viewer))->toBeFalse();
+    $viewer->blocking()->detach($author);
+
     $approved->delete();
 
     expect($approved->imagesAreVisibleTo($author))->toBeFalse();
