@@ -71,7 +71,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Repository
 
-- **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
+- **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh), linked as **GitHub** in the account menu and in the footer of the side column.
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
