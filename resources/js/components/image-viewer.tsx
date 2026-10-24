@@ -16,6 +16,7 @@ export function ImageViewer({
     onView,
     onClose,
     downloadUrl,
+    downloadFilename,
     className,
     styles,
     toolbarButtons = [],
@@ -25,7 +26,8 @@ export function ImageViewer({
     index: number | null;
     onView: (index: number) => void;
     onClose: () => void;
-    downloadUrl: (image: ShownImage) => string;
+    downloadUrl?: (image: ShownImage) => string;
+    downloadFilename?: (image: ShownImage, index: number) => string;
     className?: string;
     styles?: LightboxProps['styles'];
     toolbarButtons?: ReactNode[];
@@ -38,7 +40,7 @@ export function ImageViewer({
     const isOpen = index !== null;
 
     useEffect(() => {
-        if (!isOpen) {
+        if (!isOpen || typeof document === 'undefined') {
             return;
         }
 
@@ -71,15 +73,29 @@ export function ImageViewer({
                 alt: commitImageAlt(image, imageIndex, all.length),
                 width: image.width,
                 height: image.height,
-                download: {
-                    url: downloadUrl(image),
-                    filename: `${image.id}.webp`,
-                },
+                ...(downloadUrl && {
+                    download: {
+                        url: downloadUrl(image),
+                        filename:
+                            downloadFilename?.(image, imageIndex) ??
+                            `${image.id}.webp`,
+                    },
+                }),
             })),
-        [images, downloadUrl],
+        [images, downloadUrl, downloadFilename],
     );
 
     const hasMultipleImages = slides.length > 1;
+
+    const plugins = useMemo(() => {
+        const list = hasMultipleImages ? [Counter, Zoom] : [Zoom];
+
+        if (downloadUrl) {
+            list.push(Download);
+        }
+
+        return list;
+    }, [hasMultipleImages, downloadUrl]);
 
     return (
         <Lightbox
@@ -94,9 +110,7 @@ export function ImageViewer({
                     }
                 },
             }}
-            plugins={
-                hasMultipleImages ? [Counter, Zoom, Download] : [Zoom, Download]
-            }
+            plugins={plugins}
             className={className}
             styles={{
                 ...styles,

@@ -20,6 +20,7 @@ export default defineConfig({
             'tests/Unit/GuestFollow.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/DraftImageReads.test.tsx',
+            'tests/Unit/DraftImagePreview.test.tsx',
             'tests/Unit/ImageAttachments.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',

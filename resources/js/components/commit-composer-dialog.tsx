@@ -71,9 +71,10 @@ export function CommitComposerDialog({
                     onEscapeKeyDown={(event) => {
                         if (
                             document.querySelector(
-                                '[data-mention-suggestions], [data-command-suggestions]',
+                                '[data-mention-suggestions], [data-command-suggestions], [role="dialog"].yarl__root',
                             ) ||
-                            (event.target instanceof Element &&
+                            (typeof Element !== 'undefined' &&
+                                event.target instanceof Element &&
                                 event.target.closest('[data-composer-preview]'))
                         ) {
                             event.preventDefault();
@@ -81,9 +82,10 @@ export function CommitComposerDialog({
                     }}
                     onInteractOutside={(event) => {
                         if (
+                            typeof Element !== 'undefined' &&
                             event.target instanceof Element &&
                             event.target.closest(
-                                '[data-mention-suggestions], [data-command-suggestions]',
+                                '[data-mention-suggestions], [data-command-suggestions], [role="dialog"].yarl__root',
                             )
                         ) {
                             event.preventDefault();

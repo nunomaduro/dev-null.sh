@@ -170,8 +170,11 @@ function QuoteComposer({
         <DialogContent
             onEscapeKeyDown={(event) => {
                 if (
-                    document.querySelector('[data-mention-suggestions]') ||
-                    (event.target instanceof Element &&
+                    document.querySelector(
+                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                    ) ||
+                    (typeof Element !== 'undefined' &&
+                        event.target instanceof Element &&
                         event.target.closest('[data-composer-preview]'))
                 ) {
                     event.preventDefault();
@@ -179,8 +182,11 @@ function QuoteComposer({
             }}
             onInteractOutside={(event) => {
                 if (
+                    typeof Element !== 'undefined' &&
                     event.target instanceof Element &&
-                    event.target.closest('[data-mention-suggestions]')
+                    event.target.closest(
+                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                    )
                 ) {
                     event.preventDefault();
                 }
